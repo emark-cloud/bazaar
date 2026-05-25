@@ -83,20 +83,33 @@ Sample audit-council prompt with a `["clean", "suspect"]` constraint over a fabr
 
 `createAdvancedRequest` + `Threshold` path works; the `_sendAdvanced` helper in `AgentPlatformBase` is correct. Tx: `0x94995e2f78d1383df075a294f5b375a0c09ff8d8f6967adbe3b79b156d6ccdf6`
 
-## 0.7 — `inferToolsChat` MCP path — DEFERRED
+## 0.7 — `inferToolsChat` MCP path — NEEDS DEVREL INPUT
 
-Not invoked yet — needs a public MCP server URL to call. Plan-doc cut order ranks this #2 (drop early if time slips). Marking deferred; not on the Phase-1 critical path.
+Tried both `https://mcp.deepwiki.com/mcp` (Streamable HTTP) and `https://mcp.deepwiki.com/sse` (SSE transport) with valid prompts. Both returned `Failed` (status 3) within ~60s of the request, suggesting consensus reached on a failure response — not a timeout.
 
-## ParseWebsite — needs investigation, non-blocking
+What works: request goes through, deposit is taken, callback fires with status — i.e. our `_send` + `onPlatformCallback` plumbing is correct. What doesn't: the agent runtime appears to reject these MCP URLs. Possible causes (cannot distinguish without receipt JSON):
+- Somnia's `inferToolsChat` runtime may whitelist MCP servers it talks to.
+- MCP transport version mismatch (the agent runtime may expect a specific version).
+- Outbound HTTP from validators to public MCP servers may be restricted.
 
-Three attempts, all returned `Failed` (status 3):
-1. Coinbase price page (expected to fail — bot-protected).
-2. Wikipedia (Lionel Messi goals).
-3. CoinGecko BTC page.
+Receipt pages are fully client-rendered (`agents.testnet.somnia.network/receipts/<id>`) with no SSR data, so we cannot read the validator's error message via `curl` alone.
 
-Hypothesis: prompt is too open-ended for `ExtractANumber`, or large pages exceed agent compute budget at `numPages=1`. The platform integration is fine — requests reach validators, callbacks fire, status is observable. Only the agent's own extraction is failing.
+**Decision:** stop spending STT on blind retries. Add a specific question to the DevRel pitch: *"Is there a documented public MCP server URL for `inferToolsChat` testing on testnet?"*. Phase-1 critical path does not depend on this — cut order ranks it #2. Will revisit when DevRel responds.
 
-Action (Phase 3, not now): study a known-working docs example, or use the agent's `description`/`prompt` fields more rigorously (smaller search target, exact-string anchors). Audit council can fall back to JSON API cross-check until this is solved.
+## ParseWebsite — same diagnosis, NEEDS DEVREL INPUT
+
+Five attempts, all `Failed` (status 3):
+1. Coinbase price page, `resolveUrl=false`, `numPages=1` (expected — Coinbase bot-protected).
+2. Wikipedia full URL, `resolveUrl=false`, `numPages=1`.
+3. CoinGecko full URL, `resolveUrl=false`, `numPages=1`.
+4. `"wikipedia.org"` domain, `resolveUrl=true`, `numPages=3` — **matched docs example pattern exactly**.
+5. `"en.wikipedia.org"` domain, bounded query (100–200), `resolveUrl=true`, `numPages=3`.
+
+Even the docs-example pattern (`espn.com`, `resolveUrl=true`, `numPages=3`) didn't work for a Wikipedia analogue. The platform integration is correct (same `_send` / `onPlatformCallback` that works for the other agents). The failure is inside the Parse Website agent runtime itself.
+
+Likely platform-side cause: either a whitelisted-domain policy or a deeper agent issue we cannot diagnose without receipt content.
+
+**Decision:** same as MCP — surface as a DevRel question and unblock Phase 1. Only Phase 3 audit-council cross-check depends on this; audit can fall back to a second JSON API cross-check (different feed, different source) until ParseWebsite is solved. Document the fallback path in `Bazaar-Spec` §3.6 audit when we revise.
 
 ## Determinism fallback decision — NOT INVOKED
 

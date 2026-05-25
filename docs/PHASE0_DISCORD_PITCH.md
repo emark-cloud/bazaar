@@ -20,6 +20,14 @@ Multi-agent, fully on-chain end to end, uses three base agents (LLM Inference + 
 
 GitHub repo coming online over the next 2 days as Phase 1 lands. Happy to share the design doc + screen-record a Phase-0 spike once it deploys. Also planning a video walkthrough + a `create-somnia-agent` starter kit so the negotiation arena is forkable in 5 minutes.
 
+**Two quick technical questions while I have you:**
+
+1. **`inferToolsChat` MCP** — is there a documented public MCP server URL we can use for testnet smoke tests? Tried `mcp.deepwiki.com/mcp` and `/sse`; both return `Failed` status from consensus within ~60s. Are MCP server endpoints whitelisted in the agent runtime, or is there a version/transport requirement?
+
+2. **`LLM Parse Website`** — followed the docs example pattern exactly (`url="domain.com"`, `resolveUrl=true`, `numPages=3`, bounded query). Tried wikipedia.org, en.wikipedia.org, coingecko.com. All return `Failed`. Other agents (LLM Inference, JSON API Request) work perfectly with the same `createRequest` plumbing. Is there a list of working test domains for `ExtractANumber`?
+
+(Happy to share contract addresses + tx hashes if helpful for diagnosis.)
+
 Thanks 🙏
 
 ---
