@@ -1,0 +1,12 @@
+{
+  "name": "bazaar",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Bazaar — autonomous on-chain agent marketplace on Somnia.",
+  "scripts": {
+    "build:contracts": "pnpm --filter bazaar-contracts build || (cd contracts && forge build)",
+    "test:contracts": "cd contracts && forge test -vv",
+    "phase0:endpoints": "bash contracts/script/phase0/verify_endpoints.sh",
+    "phase0:probe": "cd contracts && forge script script/phase0/Probe.s.sol --rpc-url $TESTNET_RPC"
+  }
+}
