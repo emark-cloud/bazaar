@@ -8,6 +8,8 @@ import {Request, Response, ResponseStatus} from "../interfaces/IAgentPlatform.so
 
 /// @notice Phase 0 sub-spike — confirm LLM Parse Website's `ExtractANumber` returns a usable
 /// value for the audit-council cross-check pattern.
+/// Caller controls every parameter, including `confidenceThreshold` — the trailing `uint8`
+/// the docs page omits but the Agent Explorer requires.
 contract ParseWebsiteSpike is AgentPlatformBase {
     uint256 public lastNumber;
     ResponseStatus public lastStatus;
@@ -22,11 +24,14 @@ contract ParseWebsiteSpike is AgentPlatformBase {
         uint256 min,
         uint256 max,
         string calldata prompt,
-        string calldata url
+        string calldata url,
+        bool resolveUrl,
+        uint8 numPages,
+        uint8 confidenceThreshold
     ) external payable returns (uint256 requestId) {
         bytes memory payload = abi.encodeWithSelector(
             IParseWebsiteAgent.ExtractANumber.selector,
-            key, description, min, max, prompt, url, false, uint8(1)
+            key, description, min, max, prompt, url, resolveUrl, numPages, confidenceThreshold
         );
         requestId = _send(
             AgentIds.LLM_PARSE_WEBSITE,

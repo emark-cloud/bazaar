@@ -28,7 +28,7 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 - [ ] **0.7 `inferToolsChat` MCP spike** — DEFERRED (needs a public MCP server URL; not on Phase-1 critical path; ranked #2 in cut order)
 - [ ] **0.8 Reactivity spike** — deferred until ≥35 STT (needs 32 STT lock); not Phase-1 blocking
 - [ ] **0.9 VRF spike** — deferred until Phase 3 (AuditCouncil); not Phase-1 blocking
-- [~] ParseWebsite — agent integration works (callback fires, status observable), but specific URL/prompt combos return `Failed`. Non-blocking: only used in Phase 3 audit cross-check.
+- [x] ParseWebsite — SOLVED. Working recipe: direct URL on `simple.wikipedia.org`-class small pages, `resolveUrl=false`, `numPages=1`, `confidenceThreshold≤30`. Returned `299792` km/s for speed of light. **Critical:** Parse Website is non-deterministic (temp 0.7, top_p 0.8) — Phase 3 AuditCouncil must aggregate via `Threshold` consensus, not `Majority`.
 - [x] **Gate check:** core architecture (move loop, audit verdicts, lot pricing) verified ✓ — proceed to Phase 1
 
 ## Phase 1 — Arena core, exhibition only (days 3–6)

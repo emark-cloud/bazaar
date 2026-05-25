@@ -59,4 +59,9 @@ interface IAgentPlatform {
     function getAdvancedRequestDeposit(uint256 subcommitteeSize) external view returns (uint256);
 
     function minPerAgentDeposit() external view returns (uint256);
+
+    /// @notice Read the full Request struct (including all `responses[]` and their `result` bytes)
+    /// for a finalized request. Useful for on-chain diagnostics; the canonical receipts service
+    /// is a fully client-rendered UI, so this is the only programmatic path to validator results.
+    function getRequest(uint256 requestId) external view returns (Request memory);
 }

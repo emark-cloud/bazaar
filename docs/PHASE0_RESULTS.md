@@ -96,20 +96,48 @@ Receipt pages are fully client-rendered (`agents.testnet.somnia.network/receipts
 
 **Decision:** stop spending STT on blind retries. Add a specific question to the DevRel pitch: *"Is there a documented public MCP server URL for `inferToolsChat` testing on testnet?"*. Phase-1 critical path does not depend on this — cut order ranks it #2. Will revisit when DevRel responds.
 
-## ParseWebsite — same diagnosis, NEEDS DEVREL INPUT
+## ParseWebsite — SOLVED, with two architecture-critical findings
 
-Five attempts, all `Failed` (status 3):
-1. Coinbase price page, `resolveUrl=false`, `numPages=1` (expected — Coinbase bot-protected).
-2. Wikipedia full URL, `resolveUrl=false`, `numPages=1`.
-3. CoinGecko full URL, `resolveUrl=false`, `numPages=1`.
-4. `"wikipedia.org"` domain, `resolveUrl=true`, `numPages=3` — **matched docs example pattern exactly**.
-5. `"en.wikipedia.org"` domain, bounded query (100–200), `resolveUrl=true`, `numPages=3`.
+After the docs signature gap was closed (added `confidenceThreshold` per the live Agent Explorer; docs page is stale), and a receipt PDF was inspected, the agent works end-to-end.
 
-Even the docs-example pattern (`espn.com`, `resolveUrl=true`, `numPages=3`) didn't work for a Wikipedia analogue. The platform integration is correct (same `_send` / `onPlatformCallback` that works for the other agents). The failure is inside the Parse Website agent runtime itself.
+**Working call (tx `0xc80ffda93141a6a5452e1f506093422aa2bcdf9324ce2e72cb3e9ad3f1b91722`):**
 
-Likely platform-side cause: either a whitelisted-domain policy or a deeper agent issue we cannot diagnose without receipt content.
+```
+requestNumber(
+  "speed_of_light_kmps",
+  "Speed of light in vacuum, in km/s, rounded to nearest integer.",
+  0, 400000,
+  "What is the speed of light in vacuum, in kilometers per second? Return a single integer (no commas, no units).",
+  "https://simple.wikipedia.org/wiki/Speed_of_light",
+  false, 1, 20  // resolveUrl, numPages, confidenceThreshold
+)
+→ Success, lastNumber = 299792   // exactly right
+```
 
-**Decision:** same as MCP — surface as a DevRel question and unblock Phase 1. Only Phase 3 audit-council cross-check depends on this; audit can fall back to a second JSON API cross-check (different feed, different source) until ParseWebsite is solved. Document the fallback path in `Bazaar-Spec` §3.6 audit when we revise.
+### Architecture finding #1 — Parse Website is NOT deterministic
+
+Receipt for the (failing) Pi attempt revealed the LLM ran with **`temperature: 0.7, top_p: 0.8`** and a non-deterministic chunking step (`initial_chunks: 5, extraction_chunks: 2`).
+
+**Implication:** Parse Website **cannot** run under `Majority` consensus. The spec's §3.6 audit-council design must use `Threshold` consensus with on-chain aggregation when invoking Parse Website. Numerical answers: median across validators. String answers: plurality. This propagates into `AuditCouncil.sol` design.
+
+### Architecture finding #2 — RAG chunking penalises large pages
+
+The receipt showed the LLM only sees a small fraction of the page (2 of 5 chunks for the Pi article, ~357k markdown chars total). If the answer isn't in the selected chunks, it returns `confidence_score: 0, answerable: false`, and the agent withholds the value (status 422 if below `confidenceThreshold`).
+
+**Implication for Bazaar audit cross-check (Phase 3):**
+- Use small, focused URLs where the value is in the lead/intro (e.g., `simple.wikipedia.org` over `en.wikipedia.org`).
+- Keep `confidenceThreshold` modest (20–40 for cross-checks where any-confidence is meaningful; higher only when you need certainty).
+- Build the prompt as a precise single-value question, not natural-language exposition.
+
+### Bug summary (closed)
+
+| # | Issue | Symptom | Fix |
+|---|---|---|---|
+| 1 | Missing `confidenceThreshold` parameter in our interface | `agent_error 400, no execution steps` | Added param; docs were stale, Explorer is source of truth |
+| 2 | Long natural-language prompt as search query | `Search: No URLs found` (status 500) | Use `resolveUrl=false` + direct URL |
+| 3 | Confidence threshold too strict + page too large | `agent_error 422` (LLM got chunk without answer, confidence=0) | Use smaller pages, lower threshold, specific prompts |
+
+Three deterministic failure modes, three independent root causes. The receipt page (`agents.testnet.somnia.network/receipts/<id>`) was the single source of truth that made each fix possible.
 
 ## Determinism fallback decision — NOT INVOKED
 
