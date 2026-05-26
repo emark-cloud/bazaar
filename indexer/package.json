@@ -1,0 +1,16 @@
+{
+  "name": "bazaar-indexer",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Bazaar — Ormi subgraph indexing every match, move, audit verdict, and payout on Somnia.",
+  "scripts": {
+    "codegen": "graph codegen",
+    "build":   "graph build",
+    "deploy":  "graph deploy bazaar --node $ORMI_GRAPH_NODE --ipfs $ORMI_IPFS",
+    "test":    "graph test"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.79.0",
+    "@graphprotocol/graph-ts": "^0.32.0"
+  }
+}

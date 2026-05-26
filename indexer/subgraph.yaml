@@ -1,0 +1,198 @@
+specVersion: 0.0.5
+description: Bazaar — autonomous on-chain agent marketplace on Somnia (Shannon testnet).
+repository: https://github.com/emark-cloud/bazaar
+schema:
+  file: ./schema.graphql
+
+dataSources:
+  - kind: ethereum/contract
+    name: Arena
+    network: somnia-testnet                # confirm with Ormi the slug they expect
+    source:
+      address: "0xb129ec7d06e3136517c188113fe9b8a10f882738"
+      abi: Arena
+      startBlock: 392738646                # block of Match #3 / earliest Arena v3 activity
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/arena.ts
+      abis:
+        - name: Arena
+          file: ./abis/Arena.json
+      entities:
+        - Match
+        - Lot
+        - Move
+        - MatchParticipation
+        - Audit
+      eventHandlers:
+        - event: MatchOpened(indexed uint256,uint8,uint256[],uint8,uint8)
+          handler: handleMatchOpened
+        - event: LotPriced(indexed uint256,uint8,bytes32)
+          handler: handleLotPriced
+        - event: LotPricingRequested(indexed uint256,uint8,uint256)
+          handler: handleLotPricingRequested
+        - event: NegotiationStarted(indexed uint256)
+          handler: handleNegotiationStarted
+        - event: MoveRequested(indexed uint256,uint8,uint8,uint256,uint256)
+          handler: handleMoveRequested
+        - event: MoveMade(indexed uint256,uint8,uint8,uint256,string)
+          handler: handleMoveMade
+        - event: MoveDefaulted(indexed uint256,uint8,uint8,uint256,string)
+          handler: handleMoveDefaulted
+        - event: MoveRejected(indexed uint256,uint8,uint8,uint256,string,string)
+          handler: handleMoveRejected
+        - event: CoalitionFormed(indexed uint256,uint8,uint256,uint256,uint256)
+          handler: handleCoalitionFormed
+        - event: LotSold(indexed uint256,uint8,uint256,uint256)
+          handler: handleLotSold
+        - event: LotRevealed(indexed uint256,uint8,uint256)
+          handler: handleLotRevealed
+        - event: WinnerDeclared(indexed uint256,indexed uint256,int256)
+          handler: handleWinnerDeclared
+        - event: AgentForfeited(indexed uint256,uint256)
+          handler: handleAgentForfeited
+
+  - kind: ethereum/contract
+    name: AgentRegistry
+    network: somnia-testnet
+    source:
+      address: "0xC277c3DE929e41625e9c87D0F4877585466285f1"
+      abi: AgentRegistry
+      startBlock: 392455000                # well before first Bazaar agent mint
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/registry.ts
+      abis:
+        - name: AgentRegistry
+          file: ./abis/AgentRegistry.json
+      entities:
+        - Agent
+      eventHandlers:
+        - event: AgentMinted(indexed uint256,indexed address,bytes32,string,string)
+          handler: handleAgentMinted
+        - event: EloUpdated(indexed uint256,uint16,uint16,bool)
+          handler: handleEloUpdated
+        - event: AgentJoinableSet(indexed uint256,bool)
+          handler: handleJoinableSet
+
+  - kind: ethereum/contract
+    name: Treasury
+    network: somnia-testnet
+    source:
+      address: "0xff98f2e254913fdf4edc8449b1847d2602e67a0f"
+      abi: Treasury
+      startBlock: 392455000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/treasury.ts
+      abis:
+        - name: Treasury
+          file: ./abis/Treasury.json
+      entities:
+        - Payout
+        - SeasonFund
+        - Match
+      eventHandlers:
+        - event: MatchEscrowed(indexed uint256,uint256,uint256,uint256[])
+          handler: handleMatchEscrowed
+        - event: MatchSettled(indexed uint256,uint256,uint256,uint256[],uint256[])
+          handler: handleMatchSettled
+        - event: MatchRefunded(indexed uint256,uint256)
+          handler: handleMatchRefunded
+        - event: MatchFrozen(indexed uint256,uint256)
+          handler: handleMatchFrozen
+        - event: MatchUnfrozen(indexed uint256)
+          handler: handleMatchUnfrozen
+        - event: PayoutSent(indexed uint256,indexed uint256,indexed address,uint256)
+          handler: handlePayoutSent
+        - event: PayoutFailed(indexed uint256,indexed uint256,indexed address,uint256)
+          handler: handlePayoutFailed
+        - event: SeasonFundDrained(indexed address,uint256)
+          handler: handleSeasonFundDrained
+
+  - kind: ethereum/contract
+    name: AuditCouncil
+    network: somnia-testnet
+    source:
+      address: "0xfef114227593e8afd8e029de5698a2f94e875789"
+      abi: AuditCouncil
+      startBlock: 392738646
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/audit.ts
+      abis:
+        - name: AuditCouncil
+          file: ./abis/AuditCouncil.json
+      entities:
+        - Audit
+      eventHandlers:
+        - event: AuditStarted(indexed uint256,uint256,uint256[])
+          handler: handleAuditStarted
+        - event: AuditorsSelected(indexed uint256,uint256[])
+          handler: handleAuditorsSelected
+        - event: VerdictReceived(indexed uint256,indexed uint256,string)
+          handler: handleVerdictReceived
+        - event: ParseCheckReceived(indexed uint256,uint8,uint256,bool)
+          handler: handleParseCheckReceived
+        - event: AuditFinalized(indexed uint256,bool,uint8,uint8,uint8)
+          handler: handleAuditFinalized
+        - event: AuditTimedOut(indexed uint256,string)
+          handler: handleAuditTimedOut
+
+  - kind: ethereum/contract
+    name: LeagueScheduler
+    network: somnia-testnet
+    source:
+      address: "0x41431f15ab45689bbe5eb71690c58b291dfda7e1"
+      abi: LeagueScheduler
+      startBlock: 392753000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/scheduler.ts
+      abis:
+        - name: LeagueScheduler
+          file: ./abis/LeagueScheduler.json
+      entities:
+        - ScheduledMatch
+        - SchedulerStat
+      eventHandlers:
+        - event: MatchScheduled(indexed uint256,uint256[])
+          handler: handleMatchScheduled
+        - event: SchedulerStalled(uint256,uint256)
+          handler: handleSchedulerStalled
+        - event: SubscriptionEstablished(uint256)
+          handler: handleSubscriptionEstablished
+
+  # Somnia agent platform — gives us per-move requestId → receipt link + latency-derived failure flavour
+  - kind: ethereum/contract
+    name: AgentPlatform
+    network: somnia-testnet
+    source:
+      address: "0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776"
+      abi: AgentPlatform
+      startBlock: 392455000
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      file: ./src/platform.ts
+      abis:
+        - name: AgentPlatform
+          file: ./abis/AgentPlatform.json
+      entities:
+        - PlatformRequest
+      eventHandlers:
+        - event: RequestCreated(indexed uint256,indexed uint256,bytes)
+          handler: handleRequestCreated
+        - event: RequestFinalized(indexed uint256,uint8)
+          handler: handleRequestFinalized

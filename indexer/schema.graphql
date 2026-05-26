@@ -1,0 +1,147 @@
+# Bazaar subgraph schema — Ormi-deployable.
+# Indexes the full lifecycle of every match: who played, what they bid, what they got paid,
+# whether the audit cleared, and which on-chain agent platform request stamped each move.
+
+# An entity per registered agent NFT.
+type Agent @entity {
+  id: ID!                        # tokenId as decimal string
+  tokenId: BigInt!
+  owner: Bytes!
+  name: String!
+  promptHash: Bytes!
+  promptURI: String!
+  elo: Int!
+  matches: Int!
+  wins: Int!
+  joinable: Boolean!
+  mintedAt: BigInt!
+
+  participations: [MatchParticipation!]! @derivedFrom(field: "agent")
+  movesAsActor:   [Move!]!               @derivedFrom(field: "agent")
+  payoutsReceived:[Payout!]!             @derivedFrom(field: "agent")
+}
+
+type Match @entity {
+  id: ID!                        # matchId as decimal string
+  matchId: BigInt!
+  kind: Int!                     # 0=Exhibition, 1=RealStakes
+  phase: Int!                    # MatchPhase enum
+  rounds: Int!
+  numLots: Int!
+  openedAt: BigInt!
+  openedAtBlock: BigInt!
+  openedTx: Bytes!
+  finalizedAt: BigInt
+  winnerAgentId: BigInt
+  winnerScore: BigInt
+  pot: BigInt
+  rake: BigInt
+  agents: [MatchParticipation!]! @derivedFrom(field: "match")
+  lots:   [Lot!]!                @derivedFrom(field: "match")
+  moves:  [Move!]!               @derivedFrom(field: "match")
+  audit:  Audit
+}
+
+type MatchParticipation @entity {
+  id: ID!                        # "<matchId>-<agentId>"
+  match: Match!
+  agent: Agent!
+  budget: BigInt!
+  finalScore: BigInt
+  forfeited: Boolean!
+  payout: BigInt                 # 0 unless RealStakes settled
+}
+
+type Lot @entity {
+  id: ID!                        # "<matchId>-<lotIndex>"
+  match: Match!
+  lotIndex: Int!
+  category: String!
+  feedUrl: String!
+  valueCommitment: Bytes
+  revealedValue: BigInt
+  revealed: Boolean!
+  ownerAgentId: BigInt
+  paidPrice: BigInt
+  coalitionPartner: BigInt
+}
+
+type Move @entity {
+  id: ID!                        # "<matchId>-<round>-<turnIdx>"
+  match: Match!
+  agent: Agent!
+  round: Int!
+  turnIdx: Int!
+  kind: String!                  # "OFFER"|"COUNTER"|"COALITION"|"PASS"|"REJECTED"|"DEFAULTED"
+  raw: String!
+  reason: String
+  requestId: BigInt              # the platform requestId — links to PlatformRequest
+  request: PlatformRequest
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  tx: Bytes!
+}
+
+# Somnia agent platform request — links each Move to its consensus-verified inference.
+# Latency-derived failure flavour (validation-fail vs agent-fail) is in `failureKind`.
+type PlatformRequest @entity {
+  id: ID!                        # requestId as decimal string
+  requestId: BigInt!
+  agentId: BigInt!               # platform agent id (LLM_INFERENCE etc.), NOT Bazaar agent
+  requester: Bytes!
+  payload: Bytes!
+  createdAtBlock: BigInt!
+  finalizedAtBlock: BigInt
+  status: Int                    # 0..4 ResponseStatus
+  failureKind: String            # "validation" if finalizedAt - createdAt < 5 blocks, else "agent"
+}
+
+type Audit @entity {
+  id: ID!                        # matchId as decimal string
+  match: Match!
+  status: Int!                   # 0..3 AuditStatus
+  vrfRequestId: BigInt
+  startedAt: BigInt!
+  startedAtBlock: BigInt!
+  appealUntil: BigInt!
+  auditorIds: [BigInt!]!
+  verdictsSuspect: Int!
+  verdictsClean: Int!
+  parseChecksSuspect: Int!
+  parseChecksTotal: Int!
+  finalized: Boolean!
+  suspect: Boolean
+}
+
+type Payout @entity {
+  id: ID!                        # "<matchId>-<agentId>"
+  match: Match!
+  agent: Agent!
+  owner: Bytes!
+  amount: BigInt!
+  failed: Boolean!               # PayoutFailed re-routes to seasonFund
+  blockNumber: BigInt!
+}
+
+type SeasonFund @entity {
+  id: ID!                        # constant "fund"
+  balance: BigInt!
+  lifetimeIn: BigInt!
+  lifetimeOut: BigInt!
+}
+
+type ScheduledMatch @entity {
+  id: ID!                        # matchId
+  match: Match!
+  scheduledAt: BigInt!
+  scheduledTx: Bytes!
+  triggeredByReactive: Boolean!  # true if upstream tx came from precompile (msg.sender 0x0100)
+  seatedAgentIds: [BigInt!]!
+}
+
+type SchedulerStat @entity {
+  id: ID!                        # constant "stats"
+  matchesScheduled: BigInt!
+  callbacksReceived: BigInt!
+  stalls: BigInt!
+}

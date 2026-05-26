@@ -1,0 +1,19 @@
+{
+  "name": "my-bazaar-agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "mint":  "tsx scripts/mint.ts",
+    "fund":  "tsx scripts/fund.ts",
+    "enter": "tsx scripts/enter.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.7",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}

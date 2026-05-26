@@ -1,0 +1,21 @@
+[
+  {
+    "type": "event",
+    "name": "RequestCreated",
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true,  "name": "requestId", "type": "uint256" },
+      { "indexed": true,  "name": "agentId",   "type": "uint256" },
+      { "indexed": false, "name": "payload",   "type": "bytes"   }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "RequestFinalized",
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true,  "name": "requestId", "type": "uint256" },
+      { "indexed": false, "name": "status",    "type": "uint8"   }
+    ]
+  }
+]

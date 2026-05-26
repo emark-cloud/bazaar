@@ -111,6 +111,36 @@ The negotiation log + per-lot `valueHint` + integer-only rules + format examples
 - `Treasury.refundMatch` via `Arena._handlePricing` failure on a RealStakes match (we tested it via unit test in `TreasuryTest.testRefundOnVoid`, but the integration path from Arena is untested on testnet).
 - Forfeit penalty in real-stakes — currently `scores[i] -= int256(m.budget[i])` which is `25 ether` in real-stakes. That score number wildly dwarfs normal profit (~50–100). Forfeited agents will always rank last (which is what we want), but the math is unrealistic. Phase 3: cap forfeit penalty at some sane value like `entryStake / 1e18` or similar.
 
+## Phase 5 learnings to carry forward — read before starting Phase 6
+
+**Frontend architecture:**
+- **No off-chain backend.** The frontend reads everything via viem `publicClient` straight from the Shannon RPCs (fallback transport across both endpoints to handle the intermittent TLS errors observed in Phase 4). The subgraph is opt-in — the UI works without it, falling back to event-log scans bounded to 950-block chunks per Shannon's RPC limit.
+- **Snapshot poll cadence:** 6 s for match state, 8 s for event log, 15 s for the top-bar status strip, 20 s for the ladder. WebSocket / `watchContractEvent` was deferred — polling is sufficient at the demo cadence and avoids the long-lived-subscription failure modes Shannon's WS endpoint sometimes shows.
+- **`viem.getContractEvents` is range-limited to 1000 blocks on Shannon.** `fetchMatchEvents` pages in 950-block chunks; `findLatestMatchId` walks backwards in 950-block windows. Don't try to scan the whole chain — pick a reasonable lookback.
+- **Sigils as inline SVG** rather than `<img>` tags so animation classes drive the geometry directly. Each persona's mark is built from minimal primitives (diamond/circle/stripes/cut) to read as one family. User-minted agents get a generic diamond + a deterministic color from `generatedColorFor(name)`.
+
+**Trace layer (`TraceWaterfall`):**
+- The receipt service is fully client-rendered, so we open it in a new tab rather than embedding. Correct base: `https://agents.testnet.somnia.network/receipts/<requestId>`. Phase 0 finding still stands.
+- Spans are stylized (not measured) — they communicate the lifecycle (`createRequest → subcommittee → consensus → handleMove`) but the real timings live in the receipt page. This is fine for the demo and avoids a per-validator data dependency the indexer doesn't yet capture.
+
+**Indexer schema decisions worth keeping:**
+- `Move` entities are keyed `<matchId>-<round>-<turnIdx>` — there's exactly one move (made/defaulted/rejected) per turn, so this collapses the three event types into one denormalized row with a `kind` discriminator.
+- `PlatformRequest.failureKind` is derived from latency, not a fresh decode — the platform doesn't emit a "why it failed" field, so the Phase 0 heuristic (<5 blocks = validation, otherwise = agent) is the best we have.
+- `ScheduledMatch.triggeredByReactive` keys off `tx.from == 0x0100`. Indexer can distinguish autonomous-precompile from `pokeOpenNext` fallback at a glance.
+
+**Starter-kit shape:**
+- `scripts/_lib.ts` factors the chain config + key loading; the three commands stay under 60 lines each. Anyone reading them sees the full path: `keccak256(prompt) → mint → fund scheduler → poke`.
+- `StrategyHooks.sol` is opt-in — we don't require it. The example contract enforces `price <= maxBid` deterministically as a tutorial pattern.
+- Pre-populating `.env.example` with the deployed Phase 1–4 addresses means a developer can clone and run within 5 minutes of having STT.
+
+**Open items deferred to Phase 6:**
+- Hosted frontend deploy (Vercel/Netlify) — build is ready, only upload remains.
+- Ormi `network:` slug confirmation before subgraph deploy.
+- Strategy-prompt pinning (Pinata/Web3.Storage) — placeholder URI shipped.
+- WalletConnect on the Mint screen — placeholder + cast snippet shipped.
+- Per-screen polish for 1920×1080 capture and the settlement-beat motion sequence (currently a single `slide-up-in` per move; the lot-reveal flip animation is documented but not yet implemented).
+- `prefers-reduced-motion` query — keyframes still play; need to wrap animations in a media-query gate.
+
 ## Phase 4 learnings to carry forward — read before starting Phase 5+
 
 **Architecture-critical:**
@@ -276,29 +306,29 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 
 ### Frontend track
 
-- [ ] Tailwind config — design.md §1.1 color tokens, §1.3 typography (Space Grotesk + Inter + JetBrains Mono), §1.4 form language
-- [ ] 4 persona SVG sigils (Hawk / Diplomat / Quant / Contrarian) per design.md §2.1; check into `frontend/public/sigils/`
-- [ ] `AppShell` (top bar + left icon rail)
-- [ ] `SigilTile` with idle/thinking/acting/coalition/victory animation states (design.md §2.2)
-- [ ] `AgentPanel`, `NegotiationStream` (Transcript + OrderBook toggle), `TranscriptLine`, `OrderBookRow`, `LotCard`, `MiniLadder` (FLIP reorder), `MoveLogRow`
-- [ ] `TraceWaterfall` + `ReceiptLink` — the chain-is-always-one-toggle-away layer. **Correct receipt URL:** `https://agents.testnet.somnia.network/receipts/<id>` (the `receipts.testnet.agents.somnia.host` host returns 404; was deprecated). Receipts are JS-rendered, so the trace layer opens them via `target=_blank` rather than scraping content.
-- [ ] `LadderPodium` + `LadderRow`, `SeasonFundPanel`, `AgentProfileHeader` + `EloChart`, `MintFlow` + `StrategyPromptEditor`
-- [ ] Chain layer: viem clients, `watchContractEvent` for live updates, contract write helpers
-- [ ] 5 screens wired: Hub, Live Match, Ladder, Agent Profile, Mint
-- [ ] Settlement-beat motion sequence; coalition-formed connecting element; verify against design.md §4
-- [ ] Test at 1920×1080 desktop primary; tablet + mobile reflow per design.md §5
-- [ ] Respect `prefers-reduced-motion`
-- [ ] Deploy hosted frontend (Vercel / Netlify); record public URL
+- [x] Tailwind config — design tokens for colors, persona palettes, typography (Space Grotesk + Inter + JetBrains Mono), keyframes for `sigil-*`, `slide-up-in`, `flash-once`, `live-dot`
+- [x] 4 persona SVG sigils (Hawk / Diplomat / Quant / Contrarian) — inline-SVG `SigilGlyph` per persona, plus a generated mark for user-minted agents
+- [x] `AppShell` (top bar + left icon rail), with live status strip (matches scheduled, season fund, scheduler stats refreshed every 15 s)
+- [x] `SigilTile` with idle/thinking/acting/coalition/victory animation states
+- [x] `AgentPanel`, `NegotiationStream` (Transcript ↔ OrderBook toggle), expandable `TraceWaterfall` per row, `LotCard`, `MiniLadder`
+- [x] `TraceWaterfall` + `ReceiptLink` — opens `https://agents.testnet.somnia.network/receipts/<id>` in a new tab
+- [x] Chain layer: viem `publicClient` with fallback transport across both Shannon RPCs; hand-curated ABIs for Arena/Registry/Treasury/AuditCouncil/Scheduler
+- [x] 5 screens wired: Hub, Live Match (`/live` + `/live/:id`), Ladder, Agents/AgentProfile, Mint
+- [x] Coalition state propagated to sigil; active turn renders amber ring; lot reveal flips from sealed glyph to value with color
+- [x] Build verified — production bundle 470 KB / 145 KB gzipped; dev server boots on `localhost:5173`
+- [ ] Deploy hosted frontend (Vercel / Netlify); record public URL — **Phase 6 deploy step**
+- [ ] WalletConnect/MetaMask flow on Mint screen — placeholder + cast snippet shipped, real signing deferred to Phase 6 polish
 
 ### Indexer + starter-kit track
 
-- [ ] `indexer/subgraph.yaml` + `schema.graphql` — index `MatchOpened`, `MoveMade`, `MoveDefaulted`, `MoveRejected`, `CoalitionFormed`, `MatchSettled`, `EloUpdated`, `AuditVerdict`, `Payout`
-- [ ] Also index Somnia platform `RequestCreated` (topic[1]=requestId, topic[2]=agentId, data=payload+subcommittee) and `RequestFinalized` (requestId+status), filtered by `requester = our contracts`. Lets the frontend match each `MoveMade` to its `requestId` and receipt URL.
-- [ ] Derive "validation-fail vs agent-fail" from finalization latency (fast = validation, slow = agent execution). Surface both flavours in `MoveLogRow` because the failure semantics are different.
-- [ ] Ormi mappings; deploy subgraph; record query URL
-- [ ] `starter-kit/template/` — `persona/strategy.md`, `contracts/StrategyHooks.sol` + interfaces, `scripts/{mint,fund,enter}.ts`, `test/exhibition.test.ts`, `.env.example`, `README.md`
-- [ ] `starter-kit/bin/` — `create-somnia-agent` CLI
-- [ ] Publish to npm (or commit ready-to-publish state); verify the 5-minute quickstart end-to-end: mint → fund → enter → exhibition match
+- [x] `indexer/subgraph.yaml` + `schema.graphql` — indexes Arena (`MatchOpened`, `LotPriced`, `Move*`, `CoalitionFormed`, `LotSold`, `LotRevealed`, `WinnerDeclared`, `AgentForfeited`), Registry (mints + ELO + joinable), Treasury (escrow/payouts/season fund), AuditCouncil (full lifecycle), LeagueScheduler (with `triggeredByReactive` flag)
+- [x] Somnia agent platform indexed too — `RequestCreated` + `RequestFinalized`, with `failureKind` derived from finalize-latency (<5 blocks = validation, otherwise = agent failure)
+- [x] AssemblyScript mappings under `indexer/src/{arena,registry,treasury,audit,scheduler,platform}.ts`
+- [x] ABIs extracted from `forge build` artifacts into `indexer/abis/*.json`
+- [ ] Deploy subgraph to Ormi; verify `network:` slug; record query URL — **Phase 6 deploy step**
+- [x] `starter-kit/template/` — `persona/strategy.md`, `contracts/StrategyHooks.sol`, `scripts/{mint,fund,enter}.ts`, `test/exhibition.test.ts`, `.env.example`, `README.md`, `package.json`, `tsconfig.json`
+- [x] `starter-kit/bin/create-somnia-agent.mjs` — CLI scaffolds to a new directory in <100 ms; smoke-tested locally
+- [ ] Publish to npm — **post-submission**; the template can be cloned today by copying `starter-kit/template/`
 
 ## Phase 6 — Record + harden + submit (days 16–18)
 

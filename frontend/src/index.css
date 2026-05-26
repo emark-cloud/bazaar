@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    font-feature-settings: "tnum" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* monospace defaults to tabular figures so STT / requestIds / scores align */
+  .font-mono { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .panel {
+    @apply bg-bg-panel border border-border-subtle rounded-md;
+  }
+  .panel-raised {
+    @apply bg-bg-panel-raised border border-border-strong rounded-md;
+  }
+  .label-xs {
+    @apply font-mono text-[10px] uppercase tracking-wider text-text-dim;
+  }
+  .label-sm {
+    @apply font-mono text-xs uppercase tracking-wider text-text-secondary;
+  }
+}
