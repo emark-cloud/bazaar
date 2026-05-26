@@ -92,7 +92,7 @@ contract ArenaTest is Test {
         plat = new MockPlatform();
         reg = new AgentRegistry(address(this));
         treas = new Treasury(address(this), address(this));
-        arena = new Arena(address(plat), address(reg), address(treas));
+        arena = new Arena(address(plat), address(reg), address(treas), address(this));
         reg.setOperator(address(arena), true);
         treas.setOperator(address(arena), true);
 
@@ -237,6 +237,55 @@ contract ArenaTest is Test {
         assertEq(address(0xAA3).balance, 95 ether * 15 / 100, "quant owner gets 14.25 ether");
         assertEq(address(0xAA4).balance, 95 ether *  7 / 100, "contrarian owner gets 6.65 ether");
         assertEq(treas.seasonFund(), 5 ether, "5% rake in season fund");
+    }
+
+    function testTiedOfferIsRejected() public {
+        uint256 matchId = _openMatch();
+        plat.deliverUint(1, 100);
+        plat.deliverUint(2, 200);
+
+        // Hawk takes lot 1 at 10
+        plat.deliverString(3, "OFFER|lot=1|side=BUY|price=10");
+        // Diplo ties at 10 → must be rejected (no silent no-op)
+        plat.deliverString(4, "OFFER|lot=1|side=BUY|price=10");
+        plat.deliverString(5, "PASS");
+        plat.deliverString(6, "PASS");
+        plat.deliverString(7, "PASS");
+        plat.deliverString(8, "PASS");
+        plat.deliverString(9, "PASS");
+        plat.deliverString(10, "PASS");
+
+        Arena.Lot memory l1 = arena.getLot(matchId, 0);
+        // Hawk's standing offer survived, not Diplo's tie.
+        assertEq(l1.ownerAgentId, hawk);
+        assertEq(l1.paidPrice, 10);
+        // Diplo's tied offer became a default tick
+        // (rejected moves increment consecutiveDefaults; ELO bumped down on the match)
+        AgentRegistry.Agent memory dp = reg.getAgent(diplo);
+        assertEq(dp.matches, 1);
+    }
+
+    function testAllAgentsForfeitedSettlesEmpty() public {
+        uint256[] memory ids = new uint256[](4);
+        ids[0] = hawk; ids[1] = diplo; ids[2] = quant; ids[3] = contra;
+        Arena.LotTemplate[] memory lots = new Arena.LotTemplate[](1);
+        lots[0] = Arena.LotTemplate("ETH-USD", "u", "s", 0, 1, "~2000");
+        // 3 rounds — enough room for everyone to default 3x in a row.
+        uint256 matchId = arena.openExhibition{value: 5 ether}(ids, 25, 3, lots);
+        plat.deliverUint(1, 50);
+
+        // Every move fails (e.g. validation rejections / agent timeouts).
+        // 4 agents × 3 rounds = 12 move requests starting at reqId=2.
+        for (uint256 i = 2; i <= 13; i++) plat.deliverFail(i);
+
+        (, Arena.MatchPhase phase, , , , , , ) = arena.getMatch(matchId);
+        assertEq(uint256(phase), uint256(Arena.MatchPhase.Finalized));
+        // No lot was sold (everyone forfeited).
+        Arena.Lot memory l1 = arena.getLot(matchId, 0);
+        assertEq(l1.ownerAgentId, 0);
+        // All four ended joinable=true (Arena.setJoinable in _settle).
+        assertTrue(reg.getAgent(hawk).joinable);
+        assertTrue(reg.getAgent(diplo).joinable);
     }
 
     function testPricingFailureVoidsMatch() public {

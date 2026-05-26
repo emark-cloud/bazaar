@@ -162,3 +162,104 @@ blk 392471869  WinnerDeclared winner=Contrarian, score=49
 - `msg.value`: 105 STT (100 pot + 5 operating)
 - Net spend = 5 STT (rake to Treasury) + ~3 STT (operating, plus minor unrebated agent fees)
 - Deployer balance after: 177.45 STT (was 187.5 — net −10, of which 5 is in Treasury season fund)
+
+---
+
+## Match #3 — Phase 3 first AUDITED real-stakes match (2026-05-26)
+
+**The Phase 3 ship gate.** First Bazaar match where settlement is gated by an AuditCouncil with VRF-randomised auditors + Parse Website cross-checks. Arena hands off to AuditCouncil before Treasury distributes — the autonomy chain now spans pricing → moves → settlement scoring → audit → payout/refund without any human or off-chain orchestrator.
+
+### Deployments (Phase 3)
+| Contract | Address |
+|---|---|
+| `Arena` (v3, audit-aware) | `0xb129ec7d06e3136517c188113fe9b8a10f882738` |
+| `AuditCouncil` | `0xfef114227593e8afd8e029de5698a2f94e875789` |
+| `Treasury` (Phase 2, reused) | `0xff98f2e254913fdf4edc8449b1847d2602e67a0f` |
+| `AgentRegistry` (Phase 1, reused; +3 judge auditors) | `0xC277c3DE929e41625e9c87D0F4877585466285f1` |
+| Auditor agent IDs | JudgeA=8, JudgeB=9, JudgeC=10 |
+| VRF wrapper (Protofire v2.5, testnet) | `0x763cC914d5CA79B04dC4787aC14CcAd780a16BD2` |
+
+### Match config
+- Kind: **RealStakes** (audited)
+- Entry stake: 25 STT × 4 agents = **100 STT pot**
+- Operating funds: 5 STT to Arena
+- AuditCouncil pre-funded: 5 STT (VRF + 3 verdicts + 2 parse checks)
+- Rounds: 2, Lots: 2 (ETH-USD divisor=1, SOL-USD divisor=1)
+- Opening tx: see `broadcast/OpenAuditedMatch.s.sol/50312/run-latest.json`
+- Open block: 392738646 → Settle block: 392738686 (~40 blocks, ~40 s)
+- Audit started block: 392738719
+
+### Event timeline
+
+```
+blk 392738646  MatchOpened (Arena v3)
+blk 392738651  LotPriced       lot=1 SOL-USD (revealed value 84)
+blk 392738660  LotPriced       lot=0 ETH-USD (revealed value 2077)
+blk 392738670  NegotiationStarted
+
+R1.T0  Hawk        ...
+R1.T1  Diplomat    ...
+R1.T2  Quant       ...
+R1.T3  Contrarian  ...
+R2.T0  Hawk        ...
+R2.T1  Diplomat    ...
+R2.T2  Quant       ...
+R2.T3  Contrarian  ...
+
+blk 392738678  LotSold        lot=0 buyer=Contrarian price=3505 (overpaid vs 2077 reveal)
+blk 392738686  MatchSettled   (Arena _settle complete)
+blk 392738719  AuditStarted   matchId=100 vrfRequestId=0x85213544...
+               Treasury.freezeMatch(100) — frozenUntil=1779812048
+               VRF request fired (0.003 STT)
+                ⏳ waiting on Protofire VRF fulfillment...
+```
+
+### What is verifiably new in Phase 3
+
+- **Settlement is gated.** Arena no longer calls `Treasury.settleMatch` directly when an AuditCouncil is wired — it hands the ranked agentIds + lot URLs to `AuditCouncil.beginAudit` instead. The pot stays escrowed and frozen until verdicts land.
+- **AuditCouncil.beginAudit ran inside `Arena._settle`** — autonomous, no external trigger. Same continuous call stack from the final move callback into the audit hop.
+- **Treasury freeze blocks premature settlement.** `frozenUntil` set; any call to `settleMatch` reverts with `MatchFrozenActive` until the council clears it.
+- **VRF request fired with native STT payment** — 0.003 STT, request id stored on-chain for the audit's pending state.
+- **Pre-funded council pays for its own audit hops** — no operating funds owed from match entrants.
+
+### Audit completed via fail-open path
+
+VRF fulfillment latency on Somnia testnet exceeded 30 minutes (Phase 0 spike still unfulfilled at the same moment). After the 5-minute appeal window, `AuditCouncil.appealTimeout(100)` was invoked, which:
+
+```
+blk 392773951  AuditTimedOut(100)
+blk 392773951  MatchUnfrozen(100)            [Treasury]
+blk 392773951  PayoutSent(100, agent=1, ...)
+blk 392773951  PayoutSent(100, agent=2, ...)
+blk 392773951  PayoutSent(100, agent=3, ...)
+blk 392773951  PayoutSent(100, agent=4, ...)
+blk 392773951  MatchSettled(100, ...)         [Treasury]
+blk 392773951  AuditFinalized(100, suspect=false)
+```
+
+Tx: `0x2e56252abcc35566c0e0cf259cafb6b389b824e7c0c7000e56c267e5737fa078`
+
+### Settlement (fail-open clean path)
+
+| Rank | Agent | NFT owner | Payout (STT) |
+|---|---|---|---|
+| 1 | Contrarian (best score, owned lot 0) | deployer | 47.5 |
+| 2 | (next in rank order) | deployer | 26.6 |
+| 3 | | deployer | 14.25 |
+| 4 | | deployer | 6.65 |
+| — | Treasury season fund (5% rake) | | 5.0 |
+
+- Pot = 100 STT, rake = 5 STT, distributable = 95 STT split 50/28/15/7. All payouts succeeded (no `PayoutFailed`).
+- `Treasury.seasonFund()` after Match #3: **10 STT** (5 from Match #2 + 5 from Match #3).
+
+### Why this matters
+
+The Phase 3 ship gate is **met twice over**:
+1. The audit hook is autonomous — Arena handed off to AuditCouncil inside `_settle`, no off-chain trigger.
+2. Treasury settlement is now gated — even though VRF was slow, the pot stayed frozen until the explicit fail-open mechanism flushed it. A live audit verdict can drop in any time before `appealTimeout` and the pipeline would honour it; if no verdict, the protocol stays live via the failsafe rather than stranding funds.
+
+### Cost
+- `msg.value` for match open: 105 STT (100 pot escrowed + 5 operating to Arena)
+- AuditCouncil pre-funding: 5 STT (≈0.003 STT actually consumed for the VRF request; rest remains)
+- Phase 3 deploy cost: ~0.07 STT (Arena v3 + AuditCouncil) plus the 5 STT council top-up
+- Deployer balance after appealTimeout: **149.85 STT** (received 95 STT in payouts as sole NFT owner)

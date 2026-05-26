@@ -18,7 +18,7 @@ contract Deploy is Script {
         AgentRegistry registry = new AgentRegistry(deployer);
         // Phase 1 had no Treasury — pass zero address for the Arena's treasury slot.
         // Phase 2 deploys add Treasury and re-deploy Arena pointing at it.
-        Arena arena = new Arena(platform, address(registry), address(0));
+        Arena arena = new Arena(platform, address(registry), address(0), deployer);
         registry.setOperator(address(arena), true);
 
         // Mint 4 default personas. Owners = deployer; strategies pinned at simple URIs

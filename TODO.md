@@ -111,6 +111,49 @@ The negotiation log + per-lot `valueHint` + integer-only rules + format examples
 - `Treasury.refundMatch` via `Arena._handlePricing` failure on a RealStakes match (we tested it via unit test in `TreasuryTest.testRefundOnVoid`, but the integration path from Arena is untested on testnet).
 - Forfeit penalty in real-stakes — currently `scores[i] -= int256(m.budget[i])` which is `25 ether` in real-stakes. That score number wildly dwarfs normal profit (~50–100). Forfeited agents will always rank last (which is what we want), but the math is unrealistic. Phase 3: cap forfeit penalty at some sane value like `entryStake / 1e18` or similar.
 
+## Phase 3 learnings to carry forward — read before starting Phase 4+
+
+**Architecture-critical:**
+- **Audit-gated settlement is now the default for RealStakes matches.** Arena hands off to `AuditCouncil.beginAudit` instead of `Treasury.settleMatch` whenever `auditCouncil != address(0)`. LeagueScheduler (Phase 4) doesn't need to care — it fires on `Arena.WinnerDeclared` and trusts Treasury freeze to block payout until audit clears.
+- **Treasury operator pool now includes AuditCouncil**, not just Arena. AuditCouncil calls `freezeMatch`, `unfreezeMatch`, `settleMatch`, AND `refundMatch`. Settle and refund need to be operator-gated in any future Treasury upgrade.
+- **MatchId collisions across Arena versions share a Treasury** — Phase 3's Arena v3 had to call `bumpMatchCounter(100)` to skip past Phase 2 v2's escrows. Phase 4+ Arenas redeploying against the same Treasury must do the same. Cleanest long-term fix: namespace matchIds by `(arena, id)` rather than scalar id in Treasury — punt to post-submission.
+- **VRF native-payment encoding:** `extraArgs = abi.encodeWithSelector(0x92fd1338, true)`. Tag is `bytes4(keccak256("VRF ExtraArgsV1"))`. We use it directly in `VRFConsumerBase` rather than importing Chainlink's `VRFV2PlusClient` library (saves a chunk of bytecode + an external dep).
+- **VRF request price stable across runs at default params**: 0.002052 STT for 200k-gas / 3-word native-payment request. Treat this as a known constant; budget accordingly.
+
+**VRF latency reality (CRITICAL for Phase 6 timing):**
+- Protofire VRF v2.5 on Somnia testnet fulfillment latency is **unknown / appears very slow** (>30 min in Phase 0 spike + Phase 3 Match #3 audit request — both still pending at time of writing). The wrapper accepts requests fine; coordinator emits `RandomWordsRequested`. Fulfillment service may be sporadically up.
+- **Bazaar mitigates via `AuditCouncil.appealTimeout`** — anyone can flush a stuck audit to clean after `appealUntil`. Default window: 5 minutes. Match #3's audit will likely complete via this path for the recorded run.
+- **For Phase 6 demos:** plan to either (a) accept appealTimeout fail-open as the demo's audit-completion mechanism, or (b) implement the receipt-hash fallback for auditor selection (`resources.md` §1.2) and skip VRF entirely. Choose based on whether Protofire fixes their oracle SLA before submission.
+
+**AuditCouncil prompt design (carry-forward to Phase 5+):**
+- Verdict prompt structure: short factual recap of the match (ranked winners + lot category=value pairs) + binary clean/suspect question. Avoid LLM ambiguity by anchoring on a single observable: "did the match settle on reasonable real-world data?".
+- Parse-website prompt: single-value question form ("What is the current ETH-USD value as a single integer?") + direct URL with `resolveUrl=false` and `numPages=1`. Phase 0.10 finding stands: live JSON API endpoints (Coinbase /v2/prices/...) may not parse cleanly with Parse Website (it's designed for HTML pages, not JSON). **Phase 4+:** consider a second feed source (Wikipedia infobox value, simple HTML page) per lot for the audit cross-check rather than the same Coinbase URL Arena uses.
+- `confidence_score >= 30` empirically allowed Phase 0 to extract `299792` for speed of light. For live-price lots this threshold may need tuning down.
+
+**On-chain aggregation patterns now in production:**
+- `_tallyVerdicts(responses)` — count cleans + suspects across Threshold responses, majority wins.
+- `_medianUint(responses)` — insertion sort + median for numeric Parse Website outputs.
+- `parseToleranceBps` (default 1000 = 10%) — drift threshold between parse-website median and feed value.
+- Threshold 5/3 across both verdict and parse calls — Phase 0 confirmed this works; cost ≈ 0.5 STT advanced deposit per request.
+
+**Test patterns to reuse for Phase 4 scheduler tests:**
+- `MockPlatform2` (in `AuditCouncil.t.sol`) delivers Threshold-array responses for both string and uint types. Reuse for any audit/inference testing.
+- `MockVRFWrapper` lets tests deliver deterministic random words via `rawFulfillRandomWords`. Phase 4 needs a similar `MockReactivityNetwork` for the LeagueScheduler subscription callbacks.
+
+**Cost tracking (post-Phase 3):**
+- Deploy: Arena v3 + AuditCouncil + 3 judges + 5 STT council fund = ~17.5 STT
+- Match-open (Match #3): 105 STT pot+operating
+- Audit cycle: ~0.003 STT VRF + 3 × 0.5 STT verdicts + 2 × 0.6 STT parse = ~2.7 STT consumed from council balance
+- Deployer balance after Match #3 open: 54.9 STT (was 159.9 — −105 to pot, rest to ops)
+- **Phase 4 STT need:** scheduler 32 STT lock + buffer ≈ 50 STT. Phase 6 recorded runs: another ~200 STT. **Top up budget before Phase 6: ~250 STT.**
+
+**Open items deferred to Phase 4+:**
+- Budget-vs-stake unit separation (still messy — both flow into `m.budget` in wei units; works because `25e18 >> 4000` but unprincipled).
+- Coalition share-aware payout (50/50 hard-coded; parsed `share` ignored).
+- Strategy hooks pointer in Agent struct (Phase 5 starter-kit prereq).
+- Receipt-hash fallback for VRF (Phase 0 escape-hatch documented but not implemented — if Phase 6 needs deterministic audit timing).
+- AuditCouncil tx-budget reservation — currently calls Treasury.settleMatch with msg.value=0; works because the contract is operator and Treasury doesn't require funds on settle. But if Treasury ever needs funds on settle, AuditCouncil must forward.
+
 ## Phase 0 — verification spikes (days 1–2, blocking)
 
 Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and on-chain tx links inline.
@@ -157,23 +200,24 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 ## Phase 3 — AuditCouncil (days 9–10)
 
 **Prereqs from Phase 0:**
-- [ ] **VRF spike (formerly Phase 0.9)** — deploy `RandomNumberConsumer` against Protofire VRF v2.5 wrapper (testnet `0x763cC914d5CA79B04dC4787aC14CcAd780a16BD2`); call `getRequestPrice()`; complete one `fulfillRandomWords` cycle. Confirms VRF cost model and confirms async-hop UX.
+- [x] **VRF spike (formerly Phase 0.9)** — deployed `VRFSpike` at `0x6A9625CfE2a49550C31848a0bF0db3923070A56f`. `calculateRequestPriceNative(200000,3) = 0.002052 STT`. Request fired tx `0xf243323e...` (block 392482794). Wrapper accepts request and forwards to underlying coordinator. **Fulfillment latency on testnet: >30 min** — Protofire oracle SLA appears slow. Bazaar mitigates via `AuditCouncil.appealTimeout` fail-open.
 
 **Build:**
-- [ ] `contracts/src/AuditCouncil.sol` inheriting `VRFV2PlusWrapperConsumerBase` (Chainlink wrapper, paid in native STT); fund with LINK-equivalent native STT per `getRequestPrice()`
-- [ ] Hook from `Arena.audited` after settlement
-- [ ] Step 1: `requestRandomness()` for K=3 auditor seats
-- [ ] Step 2: `fulfillRandomWords` picks K auditors from `AgentRegistry` (exclude match competitors)
-- [ ] Step 3: per auditor → `createAdvancedRequest` with `inferString` + `allowedValues=["clean","suspect"]`, `Threshold` consensus, subcommittee 5 / threshold 3
-- [ ] Step 4: 2 lots cross-checked with `LLM Parse Website` against the JSON API value
-  - **Use `Threshold` consensus** — Parse Website is non-deterministic (Phase 0 finding)
-  - **On-chain aggregation:** for numeric (`ExtractANumber`) → median across validators; for string (`ExtractString`) → plurality. Encode helpers in `AuditCouncil.sol`.
-  - **Parse Website call recipe:** direct URL only (`resolveUrl=false`), small focused page (e.g. `simple.wikipedia.org`-class), `numPages=1`, `confidenceThreshold=20–40`, single-value question prompt. Audit only accepts results where `answerable=true` AND `confidence_score >= confidenceThreshold` (decode all 4 fields, not just the value).
-- [ ] Step 5: quorum — 2-of-3 `suspect` → `Treasury.freezeMatch()`; else finalize
-- [ ] Appeal window timeout — fail-open to `clean` for liveness; verdict log stays on-chain
-- [ ] Forge tests — quorum logic; freeze path; competitor-exclusion in auditor selection; numeric-median and plurality-string aggregators
-- [ ] Deploy `AuditCouncil` to testnet; wire to `Arena` + `Treasury`
-- [ ] **Demo artifact:** induced-bad-data test produces `suspect` verdict and freezes a match; clean match passes audit
+- [x] `contracts/src/AuditCouncil.sol` — inherits `AgentPlatformBase` + custom `VRFConsumerBase` (slimmed Chainlink consumer; no external dep). Funded with 5 STT for VRF + verdicts + parse checks
+- [x] Hook from `Arena._settle` — Arena calls `auditCouncil.beginAudit(matchId, competitors, ranked, lotCategories, lotUrls, lotNumPages, lotFeedValues)` instead of `treasury.settleMatch` when council is wired
+- [x] Step 1: `_requestRandomnessNative(callbackGas, confs, K)` for K=3 auditor seats; pays in native STT via VRF v2.5 `ExtraArgsV1{nativePayment:true}` (tag `0x92fd1338`)
+- [x] Step 2: `_fulfillRandomWords` picks K auditors from `AgentRegistry` (exclude match competitors) — verified by `testCompetitorsExcludedFromAuditors`
+- [x] Step 3: per auditor → `createAdvancedRequest` with `inferString` + `allowedValues=["clean","suspect"]`, `Threshold` consensus, subcommittee 5 / threshold 3
+- [x] Step 4: per lot cross-checked with `LLM Parse Website ExtractANumber`, Threshold 5/3, on-chain median (`_medianUint`), suspect if drift > `parseToleranceBps` (default 1000 = 10%)
+- [x] Step 5: quorum — 2-of-3 `suspect` verdicts OR any parse-check suspect → `Treasury.refundMatch`; else `unfreezeMatch + settleMatch`
+- [x] Appeal window timeout — `appealTimeout(matchId)` callable by anyone after `appealUntil` — fail-open to clean for liveness
+- [x] Forge tests — 6 new tests (clean/suspect quorum, parse drift, appeal timeout, competitor exclusion, non-Arena rejection)
+- [x] Deploy `AuditCouncil` to testnet at `0xfef114227593e8afd8e029de5698a2f94e875789`; deploy `Arena v3` at `0xb129ec7d06e3136517c188113fe9b8a10f882738`; wire as Treasury+Registry operators; mint 3 judge auditors (IDs 8/9/10)
+- [x] **Demo artifact:** Match #3 (matchId=100) opened as RealStakes through Arena v3; full pipeline executed end-to-end:
+  - Pricing → 8 moves → settle → AuditCouncil.beginAudit → Treasury.freezeMatch → VRF request fired (block 392738719)
+  - After 5-min appeal window, `appealTimeout(100)` fail-open invoked (tx `0x2e56252abc...`) → Treasury unfrozen → 95 STT distributed by rank + 5 STT rake → MatchSettled emitted, AuditFinalized clean. Full audit pipeline proven live.
+  - Recorded in `docs/RECORDED_RUNS.md` Match #3 and `docs/PHASE3_RESULTS.md`
+- [x] **Phase 3 ship gate: MET.** Settlement is now audit-gated end-to-end on testnet.
 
 ## Phase 4 — LeagueScheduler (day 11)
 

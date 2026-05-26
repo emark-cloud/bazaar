@@ -18,7 +18,7 @@ contract DeployPhase2 is Script {
         vm.startBroadcast(pk);
 
         Treasury treasury = new Treasury(deployer, deployer);
-        Arena arena = new Arena(platform, registry_, address(treasury));
+        Arena arena = new Arena(platform, registry_, address(treasury), deployer);
 
         // Wire: Arena is operator on both Registry and Treasury.
         AgentRegistry(registry_).setOperator(address(arena), true);

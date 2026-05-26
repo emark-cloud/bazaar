@@ -9,12 +9,25 @@ import {Request, Response, ResponseStatus, ConsensusType} from "./interfaces/IAg
 import {AgentRegistry} from "./AgentRegistry.sol";
 import {RulesEngine} from "./lib/RulesEngine.sol";
 import {ITreasury} from "./interfaces/ITreasury.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+interface IAuditCouncil {
+    function beginAudit(
+        uint256 matchId,
+        uint256[] calldata competitorIds,
+        uint256[] calldata rankedAgentIds,
+        string[]  calldata lotCategories,
+        string[]  calldata lotUrls,
+        uint8[]   calldata lotNumPages,
+        uint256[] calldata lotFeedValues
+    ) external;
+}
 
 /// @title Arena — the autonomous negotiation auctioneer
 /// @notice One contract owns the full match lifecycle: pricing → negotiating → settling.
 /// Every state transition is consensus-driven (lot values from JSON API, moves from inferChat).
 /// No off-chain driver; the state machine advances inside the platform's callbacks.
-contract Arena is AgentPlatformBase {
+contract Arena is AgentPlatformBase, Ownable {
     AgentRegistry public immutable registry;
 
     enum MatchKind { Exhibition, RealStakes }
@@ -116,10 +129,37 @@ contract Arena is AgentPlatformBase {
     error NotJoinable(uint256 agentId);
 
     ITreasury public treasury;
+    IAuditCouncil public auditCouncil;
+    /// @notice Cap on the forfeit penalty so a forfeited agent's negative score doesn't blow out
+    /// the ranking math when budgets are denominated in wei (Phase 2 finding).
+    uint256 public forfeitPenalty = 100;
 
-    constructor(address platform_, address registry_, address treasury_) AgentPlatformBase(platform_) {
+    event AuditCouncilSet(address council);
+    event ForfeitPenaltySet(uint256 penalty);
+
+    constructor(address platform_, address registry_, address treasury_, address initialOwner)
+        AgentPlatformBase(platform_)
+        Ownable(initialOwner)
+    {
         registry = AgentRegistry(registry_);
         treasury = ITreasury(treasury_);
+    }
+
+    function setAuditCouncil(address council) external onlyOwner {
+        auditCouncil = IAuditCouncil(council);
+        emit AuditCouncilSet(council);
+    }
+
+    function setForfeitPenalty(uint256 p) external onlyOwner {
+        forfeitPenalty = p;
+        emit ForfeitPenaltySet(p);
+    }
+
+    /// @notice One-shot match-id bump for when this Arena shares a Treasury with a prior deployment
+    /// (matchIds are keys in Treasury._escrows; collisions revert escrowMatch).
+    function bumpMatchCounter(uint256 to) external onlyOwner {
+        require(to > nextMatchId, "back");
+        nextMatchId = to;
     }
 
     // --- Match lifecycle ------------------------------------------------------------------
@@ -482,12 +522,18 @@ contract Arena is AgentPlatformBase {
             if (mv.kind == RulesEngine.MoveKind.OFFER && mv.side == RulesEngine.Side.BUY) {
                 if (L.ownerAgentId != 0) return (false, "lot already owned");
                 if (mv.price > m.budget[turnIdx]) return (false, "over budget");
-                // settle immediately if no standing offer or this beats it
-                if (L.standingOfferPrice == 0 || mv.price > L.standingOfferPrice) {
+                // First bid: take it. Subsequent bids must strictly beat the standing offer
+                // (Phase 2 tied-bid quirk: silent no-op replaced with explicit reject).
+                if (L.standingOfferPrice == 0) {
                     L.standingOfferPrice = mv.price;
                     L.standingOfferBy = agentId;
                     L.standingOfferIsBuy = true;
+                    return (true, "");
                 }
+                if (mv.price <= L.standingOfferPrice) return (false, "offer must beat standing");
+                L.standingOfferPrice = mv.price;
+                L.standingOfferBy = agentId;
+                L.standingOfferIsBuy = true;
                 return (true, "");
             }
             // SELL not applicable in Phase 1 (no inventory transfer); reject
@@ -580,9 +626,9 @@ contract Arena is AgentPlatformBase {
             }
         }
 
-        // Apply forfeit penalties (Phase 1: -entry-stake-equivalent; we use starting budget as proxy)
+        // Apply forfeit penalties — capped (Phase 2 finding: -budget in wei dwarfs realistic profit).
         for (uint256 i = 0; i < m.agentIds.length; i++) {
-            if (m.forfeited[i]) scores[i] -= int256(m.budget[i]);
+            if (m.forfeited[i]) scores[i] -= int256(forfeitPenalty);
         }
 
         // Pick winner (highest score; tie-break by first index)
@@ -605,11 +651,36 @@ contract Arena is AgentPlatformBase {
         emit MatchSettled(matchId, m.agentIds, scores, m.agentIds[winnerIdx]);
         emit WinnerDeclared(matchId, m.agentIds[winnerIdx], scores[winnerIdx]);
 
-        // RealStakes: have Treasury distribute the pot by score-descending rank.
+        // RealStakes: either route through AuditCouncil (which will gate Treasury.settleMatch),
+        // or settle Treasury directly when no AuditCouncil is wired.
         if (m.kind == MatchKind.RealStakes && address(treasury) != address(0)) {
             uint256[] memory ranked = _rankByScore(m.agentIds, scores, m.forfeited);
-            treasury.settleMatch(matchId, ranked);
+            if (address(auditCouncil) != address(0)) {
+                _beginAudit(matchId, ranked);
+            } else {
+                treasury.settleMatch(matchId, ranked);
+            }
         }
+    }
+
+    /// @dev Pack lot metadata for the audit council and trigger `beginAudit`.
+    /// Keeps the audit invocation inside the Arena (autonomy), and lets a single Arena upgrade
+    /// later swap audit councils without redeploying.
+    function _beginAudit(uint256 matchId, uint256[] memory ranked) internal {
+        Match storage m = _matches[matchId];
+        uint8 n = m.numLots;
+        string[]  memory cats     = new string[](n);
+        string[]  memory urls     = new string[](n);
+        uint8[]   memory pages    = new uint8[](n);
+        uint256[] memory feedVals = new uint256[](n);
+        for (uint8 i = 0; i < n; i++) {
+            Lot storage L = _lots[matchId][i];
+            cats[i]     = L.category;
+            urls[i]     = L.feedUrl;
+            pages[i]    = 1;
+            feedVals[i] = L.revealedValue;
+        }
+        auditCouncil.beginAudit(matchId, m.agentIds, ranked, cats, urls, pages, feedVals);
     }
 
     /// @dev Sort agentIds by score descending; forfeited agents pushed to the end.
