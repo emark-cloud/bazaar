@@ -83,18 +83,28 @@ Sample audit-council prompt with a `["clean", "suspect"]` constraint over a fabr
 
 `createAdvancedRequest` + `Threshold` path works; the `_sendAdvanced` helper in `AgentPlatformBase` is correct. Tx: `0x94995e2f78d1383df075a294f5b375a0c09ff8d8f6967adbe3b79b156d6ccdf6`
 
-## 0.7 — `inferToolsChat` MCP path — NEEDS DEVREL INPUT
+## 0.7 — `inferToolsChat` MCP path — SOLVED via raw-selector probing
 
-Tried both `https://mcp.deepwiki.com/mcp` (Streamable HTTP) and `https://mcp.deepwiki.com/sse` (SSE transport) with valid prompts. Both returned `Failed` (status 3) within ~60s of the request, suggesting consensus reached on a failure response — not a timeout.
+The original 400 failures were the same root cause as ParseWebsite v1: **wrong function selector**. Our `ILlmAgent.inferToolsChat` had `string[] onchainTools` (selector `0x4f48fdb0`); the canonical agent method expects a struct array with the canonical selector **`0xd0683905`** = `inferToolsChat(string[],string[],string[],(string,string)[],uint256,bool)`.
 
-What works: request goes through, deposit is taken, callback fires with status — i.e. our `_send` + `onPlatformCallback` plumbing is correct. What doesn't: the agent runtime appears to reject these MCP URLs. Possible causes (cannot distinguish without receipt JSON):
-- Somnia's `inferToolsChat` runtime may whitelist MCP servers it talks to.
-- MCP transport version mismatch (the agent runtime may expect a specific version).
-- Outbound HTTP from validators to public MCP servers may be restricted.
+The Agent Explorer's auto-generated Solidity/TypeScript snippets ship `tuple[]` as a literal placeholder with no field schema. Neither the docs nor the Explorer revealed the struct shape. We discovered it empirically via `RawSelectorSpike` — a probe contract that fires arbitrary `(selector, args)` payloads. Two rounds of 5 + 4 candidate selectors against `LLM Inference`; selector `0xd0683905` was the only one that returned a non-400 status. The corresponding struct is `(string, string)` — likely `(name, description)`. Field names don't affect us; Bazaar only uses the MCP path with `onchainTools = []`.
 
-Receipt pages are fully client-rendered (`agents.testnet.somnia.network/receipts/<id>`) with no SSR data, so we cannot read the validator's error message via `curl` alone.
+**Working call (tx `0x0a7e2871c481b064580fde58f2c65ca604beb24877ce995922d5b374732ac305`):**
 
-**Decision:** stop spending STT on blind retries. Add a specific question to the DevRel pitch: *"Is there a documented public MCP server URL for `inferToolsChat` testing on testnet?"*. Phase-1 critical path does not depend on this — cut order ranks it #2. Will revisit when DevRel responds.
+```
+requestWithMcp(
+  "You are a research assistant. You have access to the DeepWiki MCP server which provides info about GitHub repos.",
+  "What is the primary programming language of the GitHub repository 'foundry-rs/foundry'? Use the MCP tools to look it up, then reply with just one word: the language name.",
+  "https://mcp.deepwiki.com/mcp"
+)
+→ Success, finishReason="stop", response="Solidity"
+```
+
+End-to-end on-chain → DeepWiki MCP server → tool use → answer. The spec §3.3 `inferToolsChat` showcase is fully proven.
+
+### Architecture finding — MCP path completes in one invocation
+
+Per the spec's caveat (§3.3), the worry was that on-chain tools trigger a `finishReason == "tool_calls"` resume loop. MCP tools do NOT trigger that — the agent executed the MCP calls internally and returned `finishReason: "stop"` in a single invocation. Bazaar's intel showcase never has to deal with the yield-and-resume pattern.
 
 ## ParseWebsite — SOLVED, with two architecture-critical findings
 

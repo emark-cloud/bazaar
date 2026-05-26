@@ -34,7 +34,7 @@ contract InferToolsChatSpike is AgentPlatformBase {
         string[] memory mcpUrls = new string[](1);
         mcpUrls[0] = mcpServerUrl;
 
-        string[] memory onchainTools = new string[](0);
+        ILlmAgent.OnchainTool[] memory onchainTools = new ILlmAgent.OnchainTool[](0);
 
         bytes memory payload = abi.encodeWithSelector(
             ILlmAgent.inferToolsChat.selector,

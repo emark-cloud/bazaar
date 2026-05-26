@@ -25,7 +25,7 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 - [x] **0.4a Determinism fallback decision** — **NOT INVOKED** (0.4 succeeded). Spec §3.2 Majority loop stands verbatim.
 - [x] **0.5 JSON API spike** — `fetchUint` returned SOL-USD = $85.61 (scaled by 10²). Deposit math correct.
 - [x] **0.6 `inferString` spike** — `Threshold 5/3`, returned `"clean"` (4 cleans, 0 suspects). Audit consensus path works.
-- [ ] **0.7 `inferToolsChat` MCP spike** — DEFERRED (needs a public MCP server URL; not on Phase-1 critical path; ranked #2 in cut order)
+- [x] **0.7 `inferToolsChat` MCP spike** — SOLVED. Canonical selector `0xd0683905` discovered via raw-selector probing; struct is `(string,string)`. End-to-end test against `https://mcp.deepwiki.com/mcp` returned `"Solidity"` for `foundry-rs/foundry`'s primary language. MCP path completes in one invocation (no resume loop).
 - [ ] **0.8 Reactivity spike** — deferred until ≥35 STT (needs 32 STT lock); not Phase-1 blocking
 - [ ] **0.9 VRF spike** — deferred until Phase 3 (AuditCouncil); not Phase-1 blocking
 - [x] ParseWebsite — SOLVED. Working recipe: direct URL on `simple.wikipedia.org`-class small pages, `resolveUrl=false`, `numPages=1`, `confidenceThreshold≤30`. Returned `299792` km/s for speed of light. **Critical:** Parse Website is non-deterministic (temp 0.7, top_p 0.8) — Phase 3 AuditCouncil must aggregate via `Threshold` consensus, not `Majority`.

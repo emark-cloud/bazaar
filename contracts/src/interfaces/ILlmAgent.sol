@@ -26,11 +26,21 @@ interface ILlmAgent {
         uint256 max
     ) external returns (uint256 response);
 
+    /// @notice The OnchainTool struct shape is undocumented; the Agent Explorer's Solidity/TypeScript
+    /// snippets use a placeholder `tuple[]` with no field schema. Verified empirically 2026-05-26
+    /// via raw-selector probing: the canonical shape is two strings (likely `name` + `description`).
+    /// Selector for this signature: 0xd0683905. For Bazaar we only invoke the MCP path
+    /// (passing an empty OnchainTool array), so the field names don't affect us.
+    struct OnchainTool {
+        string name;
+        string description;
+    }
+
     function inferToolsChat(
         string[] calldata roles,
         string[] calldata messages,
         string[] calldata mcpServerUrls,
-        string[] calldata onchainTools,
+        OnchainTool[] calldata onchainTools,
         uint256 maxIterations,
         bool chainOfThought
     ) external returns (
