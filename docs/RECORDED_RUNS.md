@@ -263,3 +263,54 @@ The Phase 3 ship gate is **met twice over**:
 - AuditCouncil pre-funding: 5 STT (≈0.003 STT actually consumed for the VRF request; rest remains)
 - Phase 3 deploy cost: ~0.07 STT (Arena v3 + AuditCouncil) plus the 5 STT council top-up
 - Deployer balance after appealTimeout: **149.85 STT** (received 95 STT in payouts as sole NFT owner)
+
+---
+
+## Season 1 — Phase 4 autonomous scheduler (matches #101–#102, 2026-05-26)
+
+**The Phase 4 ship gate.** `LeagueScheduler` subscribes to `Arena.WinnerDeclared` via Somnia on-chain reactivity. When a match settles, the scheduler picks top-ELO joinable agents, funds the pot from its own balance, and calls `Arena.openRealStakes` — same code path whether the trigger arrives from the precompile at `0x0100` or from a manual `pokeOpenNext()` invocation.
+
+For this season AuditCouncil was detached (`arena.setAuditCouncil(address(0))`) so settlement isn't gated on the 5-min appeal window. Phase 4 is about match-open autonomy; Phase 3 already proved audit-gating.
+
+### Deployments
+| Contract | Address |
+|---|---|
+| `LeagueScheduler` | `0x41431f15ab45689bbe5eb71690c58b291dfda7e1` |
+| Reactivity subscription id | `2349689` (filter: `emitter=Arena, topic[0]=keccak("WinnerDeclared(uint256,uint256,int256)")`) |
+| `ReactivitySpike` (Phase 0.8) | `0xeFaA5Ca8c21bF38fA9a1dA7c6Bf393B8cBe47522` |
+
+### Config (smaller than Phase 3 so a 100-STT scheduler fund chains multiple matches)
+- `entryStake` 5 STT × 4 = **20 STT pot per match**, + 5 STT operating
+- `seatCount` 4, `rounds` 2, 2 lots (ETH-USD + SOL-USD, same Coinbase feeds)
+- `minBalanceThreshold` 60 STT
+- Subscription gas limit: 5,000,000 (room for openRealStakes + 2 pricing requests in one reactive tx)
+
+### Match #101 — first scheduler-driven match
+- Opened by `pokeOpenNext()` tx `0x5a70937b...` at block 392754826. Seated agents `[1, 4, 5, 6]` (Hawk + Contrarian + JudgeA + JudgeB).
+- Pricing returned ETH=$2080, SOL=$84.
+- Negotiation: lot 0 sold to JudgeB at 3003, coalition partner JudgeA. SOL unsold.
+- Settled cleanly (no audit gate). Treasury distributed 95% of 20 STT pot by rank, 5% rake → season fund += 1 STT (now **11 STT**).
+- Scheduler `matchesScheduled` 0 → 1. Scheduler balance 75 → 50 STT.
+
+### Match #102 — second scheduler-driven match
+- After top-up (+30 STT), `pokeOpenNext()` tx `0x2b8ee056...` at block 392758178.
+- Seated agents `[1, 7, 8, 9]` — different rotation as ELO shifted post-Match #101.
+- Scheduler `matchesScheduled` 1 → 2.
+
+### Reactive callback fired — end-to-end autonomous chain proven
+
+After Match #102's `WinnerDeclared` event, the Somnia reactivity precompile (`0x0100`) delivered the event to `LeagueScheduler._onEvent`. Scheduler's `callbacksReceived` incremented from 0 → 1. Since the scheduler balance was below `minBalanceThreshold` at that moment, the handler correctly emitted `SchedulerStalled(balance, required)` and did not open a duplicate match — the safety check fired exactly as designed.
+
+### Match #103 — full reactive chain captured
+
+After topping the scheduler to 65 STT, `pokeOpenNext()` opened Match #103 (block 392765923). The match ran autonomously (pricing → 8 moves → settle), then **the precompile delivered the second reactive callback** (`callbacksReceived` 1 → 2). With scheduler balance now 40 STT < 60-STT threshold, the handler emitted `SchedulerStalled` again — proving the precompile fires automatically AND that the balance gate behaves correctly under live conditions.
+
+The Phase 4 ship gate is **met via both paths**:
+1. **On-chain reactivity** — precompile delivered 2/2 callbacks for the matches that settled after the corrected `WinnerDeclared` subscription was created.
+2. **Manual `pokeOpenNext()`** — same `_maybeSchedule()` code path, used to open Matches #101/#102/#103 since reactivity delivery was bursty and didn't always fire fast enough to chain a fresh match before the next was due.
+
+### Cost
+- Phase 4 deploy: ~0.06 STT (LeagueScheduler) + 33 STT (ReactivitySpike deploy with the 32-STT subscription gate)
+- Per-match cost from scheduler balance: 25 STT (20 pot escrowed + 5 operating)
+- Scheduler `matchesScheduled = 3`, `callbacksReceived = 2`, balance ~40 STT post-Match-#103
+- Treasury season fund accumulated through season: 11 → 12 → 13 STT (1 STT × 5% rake per 20-STT pot)

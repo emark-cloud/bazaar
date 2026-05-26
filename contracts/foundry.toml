@@ -10,6 +10,7 @@ via_ir = true
 remappings = [
   "forge-std/=lib/forge-std/src/",
   "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+  "@somnia-chain/reactivity-contracts/=lib/somnia-reactivity-contracts/",
 ]
 
 [rpc_endpoints]
