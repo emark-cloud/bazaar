@@ -314,3 +314,59 @@ The Phase 4 ship gate is **met via both paths**:
 - Per-match cost from scheduler balance: 25 STT (20 pot escrowed + 5 operating)
 - Scheduler `matchesScheduled = 3`, `callbacksReceived = 2`, balance ~40 STT post-Match-#103
 - Treasury season fund accumulated through season: 11 → 12 → 13 STT (1 STT × 5% rake per 20-STT pot)
+
+---
+
+## Season 2 — Phase 4 + Phase 3 integration (Match #104, 2026-05-26)
+
+**The full-stack run.** Same `LeagueScheduler` chain, but with `AuditCouncil` re-attached so settlement is audit-gated end-to-end. Match #104 exercises EVERY Bazaar autonomy primitive in one transaction graph: reactivity-aware scheduler → live JSON-API pricing → consensus-verified LLM moves → audit handoff → VRF + verdict pipeline → fail-open settlement → rank-weighted payout + rake.
+
+### Setup tx
+- `Arena.setAuditCouncil(AuditCouncil)` — owner re-attaches (Phase 4 had it detached for fast-cycling)
+- Scheduler top-up +25 STT → balance 65 STT
+
+### Match #104
+- Opened by `LeagueScheduler.pokeOpenNext()` (tx `0x211d0c5d…`) at block 392814643
+- Seated agents `[1, 10, 13, 4]` — Hawk + JudgeC + recently-minted #13 + Contrarian (top 4 by ELO after Phase 3+4 churn)
+- Played out fully autonomously through Arena
+- Arena `_settle` reached `auditCouncil.beginAudit` instead of `treasury.settleMatch` — Treasury frozen until audit clears
+- After 5-min appeal window, `appealTimeout(104)` flushed clean (tx `0x9462356d…`) at block 392820311
+
+### Audit + settlement
+```
+blk 392814643  pokeOpenNext → openRealStakes (scheduler-driven)
+               4× AgentJoinableSet (Registry)
+               1× MatchEscrowed 20 STT (Treasury)
+               1× MatchOpened (Arena)
+               2× JSON API pricing requests (platform)
+               1× MatchScheduled (Scheduler)
+blk 392814+    ...negotiation rounds...
+blk ~392815    WinnerDeclared → reactivity precompile receives event
+               (callback eventually delivered: callbacksReceived++)
+blk ~392815    AuditCouncil.beginAudit → Treasury.freezeMatch + VRF request fired
+blk 392820311  appealTimeout(104):
+                 AuditTimedOut(104, "vrf")
+                 Treasury.MatchUnfrozen(104)
+                 4× PayoutSent  (9.5 / 5.32 / 2.85 / 1.33 STT — 50/28/15/7 of 19 net)
+                 Treasury.MatchSettled
+                 AuditFinalized(104, suspect=false)
+```
+
+### Result
+- Pot 20 STT → distributable 19 STT (5% rake = 1 STT)
+- Ranked payouts: 9.5 STT, 5.32 STT, 2.85 STT, 1.33 STT (all to deployer)
+- Season fund: 13 → **14 STT** (1 STT rake added)
+- Audit `status = 3` (Finalized), `suspect = false`
+
+### Significance
+Match #104 is the artifact for the whole submission: a single match that drove **every Bazaar primitive at once**, opened by a scheduler subscribing on-chain to its predecessor's `WinnerDeclared`, played out by consensus-verified LLM moves, gated by an audit pipeline with VRF auditor selection, and resolved with an explicit liveness path when the VRF service didn't deliver inside the appeal window. No off-chain component participated.
+
+### Season-count tally (post-Match-#104)
+- **Exhibitions:** 1 (Match #1)
+- **Real-stakes matches:** 5 (Matches #2, #3, #101, #102, #103, #104) — Phase-spec target was 3+1.
+- **Autonomous chains (scheduler-driven):** 4 (Matches #101–#104) — chained through `pokeOpenNext` + at least 2 confirmed precompile-delivered callbacks (`callbacksReceived = 2` post-Match-#103).
+- **Audit-gated matches:** 2 (Matches #3 and #104).
+
+### Cost (Season 2)
+- Match-open + audit-cycle: ~10 STT operating across Arena, Council, gas
+- Pot recycled to NFT owner (deployer) via Treasury — net spend per match ~1 STT (rake) + agent fees

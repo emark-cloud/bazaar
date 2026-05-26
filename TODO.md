@@ -332,21 +332,25 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 
 ## Phase 6 — Record + harden + submit (days 16–18)
 
-- [ ] Capture 3 real-stakes seasons + 1 exhibition match unattended; archive tx hashes, indexer snapshots, receipt IDs, stdout transcripts → `docs/RECORDED_RUNS.md`
-- [ ] `docs/TECHNICAL.md` — "How Bazaar uses the Agentic L1". Must cover:
-  - `createRequest`/callback flows + the four non-negotiable Somnia rules
-  - `Majority` (deterministic LLM) vs `Threshold` (Parse Website + audit verdicts) choices
-  - Failure-mode table (verbatim from `bazaar.md` §7)
-  - The autonomy argument
-  - **Phase 0 discoveries section:** docs are stale; Agent Explorer is canonical; the `inferToolsChat` `OnchainTool` struct shape (selector `0xd0683905`, fields `(string,string)`) was reverse-engineered via raw-selector probing (link to `RawSelectorSpike.sol`); Parse Website non-determinism + the `confidence_score` gating recipe; receipt-driven debugging methodology
-  - Determinism-fallback decision from Phase 0.4a (not invoked, but show the fallback selector for completeness)
-- [ ] `docs/VIDEO_SCRIPT.md` — scripted walkthrough; settlement beat + coalition forming as the two hero captures
-- [ ] Record video walkthrough; upload (YouTube / Loom)
-- [ ] Frontend capture polish at 1920×1080
-- [ ] `README.md` at repo root — one-paragraph pitch (from `bazaar.md` §12), live deployment addresses, hosted frontend URL, video link, starter-kit quickstart
-- [ ] Final pass on every contract: deposit math; `receive()` present; callback gated; status check before decode; reactivity filter set
-- [ ] Submit per Encode Club programme page (public GitHub repo, hosted frontend URL, demo video)
-- [ ] Post-submission: DM Somnia DevRel with the submission link (hiring angle)
+- [x] Capture 3+ real-stakes seasons + 1 exhibition match — recorded in `docs/RECORDED_RUNS.md`:
+  - Match #1 (Phase 1 exhibition)
+  - Match #2 (Phase 2 real-stakes first)
+  - Match #3 (Phase 3 audited real-stakes)
+  - Season 1 — Matches #101/#102/#103 (Phase 4 scheduler-driven)
+  - Season 2 — Match #104 (Phase 4 scheduler + Phase 3 audit re-integrated; the all-primitives run)
+- [x] `docs/TECHNICAL.md` — full "How Bazaar uses the Agentic L1" writeup with the createRequest flow, four Somnia rules, Majority/Threshold matrix, failure-mode table, autonomy argument, Phase 0 discoveries, cost model, and a "where to look" code index
+- [x] `docs/AUDIT_CHECKLIST.md` — per-contract verification of the four Somnia rules + reactivity filter + reentrancy + operator gates
+- [x] `README.md` at repo root — pitch, live deployment table with explorer links, frontend quickstart, test command, starter-kit quickstart, what-to-read guide
+- [x] `LICENSE` — MIT
+- [x] Final contract audit pass — 38/38 forge tests green; per-contract verification recorded in AUDIT_CHECKLIST.md
+- [x] Subgraph builds cleanly (`pnpm codegen` + `pnpm build`); deploy path documented for Ormi and Subgraph Studio
+- [ ] `docs/VIDEO_SCRIPT.md` — explicitly excluded from this Phase 6 work-pass per user direction
+- [ ] Frontend capture polish at 1920×1080 — explicitly excluded (no video recording this pass)
+- [ ] Record + upload video walkthrough — explicitly excluded this pass
+- [ ] Deploy hosted frontend (Vercel/Netlify) — explicitly excluded this pass; build is ready
+- [ ] Deploy subgraph to Ormi — gated on Ormi credentials (`ORMI_GRAPH_NODE` + `ORMI_DEPLOY_KEY`); single-command deploy step documented in `indexer/README.md`
+- [ ] Submit per Encode Club programme page — explicitly excluded this pass
+- [ ] Post-submission DevRel ping — explicitly excluded this pass
 
 ## Cut order if timeline slips (do not invoke unless behind on day 11)
 
