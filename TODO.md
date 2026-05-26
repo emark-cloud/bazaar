@@ -73,6 +73,44 @@ Check items off as they ship. A phase is done only when its **demo artifact** ru
 - Coalition share parameter: parsed but settlement hard-codes 50/50. Phase 2 can wire share-aware payout if budget allows.
 - Strategy hooks contract: AgentRegistry has no hooks pointer. Phase 5 starter-kit needs this (let advanced users add deterministic guardrails). Add `address strategyHooks` to the `Agent` struct in Phase 5, not earlier.
 
+## Phase 2 learnings to carry forward — read before starting Phase 3+
+
+**Strategy emerged after prompt v2:**
+The negotiation log + per-lot `valueHint` + integer-only rules + format examples + score-objective text transformed agent behavior in Match #2. From Phase 1's "all 4 agents bid full budget on lot 1" to Phase 2's diverse strategic play (different lot targeting, min-increment counter-bids, 3 coalition attempts including 1 accepted, self-coalition rejection caught). **Keep these prompt invariants when iterating in Phase 3+.** Specifically:
+- Negotiation log capped at last 32 entries (`_log[matchId]` storage) — sufficient for 5-round matches; revisit if rounds increase.
+- `valueHint` per lot is what lets agents know "what number is sensible to bid" given the feed's natural scale. Without it, agents don't know whether to bid 50 or 5000.
+- "integer only, no units, no commas, no underscores" + concrete OK/NOT-OK examples killed the unit-suffix LLM error from Phase 1.
+
+**Architecture-critical:**
+- `valueDivisor` per lot normalises feed-raw value → STT-int profit. Match #2 used `divisor=1` with `feedDecimals=0` (integer dollars). For larger numbers (e.g. BTC at $90,000), use a larger divisor so effective values stay in a reasonable bid range. Document each lot's divisor in `RECORDED_RUNS.md` alongside its feed.
+- **Budget-vs-stake unit clarity is still messy** — `openRealStakes` uses `entryStake` (in wei) as the agent's `m.budget[i]`, so bids are checked against `25 ether = 25e18` while LLMs return small integers like `2001`. Works by accident in Phase 2 (any integer fits in 25e18). **Phase 3 task:** separate `bidBudget` (game units, e.g. 25) from `entryStake` (STT wei, e.g. 25e18). Otherwise agents could theoretically bid 1e18 and pass validation, breaking score math.
+- **Tied-bid quirk:** `OFFER` at the same price as a standing offer parses OK but doesn't update state (no error, no displacement). Phase 3 decision: either reject as illegal (`OFFER must beat standing offer or be the first`), or leave as no-op. Recommend rejecting for clarity — `MoveRejected` makes the failure visible.
+- **Coalition target is implicit:** the partner must have an open standing offer; the coalition binds to that lot. Multiple coalitions on the same lot will overwrite `L.coalitionPartner`. Phase 3: either enforce one-coalition-per-lot or extend to a list. Frontend (Phase 5) should visualise which lot a coalition binds to.
+- **All-agents-forfeited path is still untested.** Code exists in `_advanceTurn → _toSettling` but no test covers it. Phase 3 forge test required.
+
+**Treasury contract notes:**
+- `Arena` is operator on Treasury via `setOperator`. **Phase 3 AuditCouncil also needs operator role** for `freezeMatch` / `unfreezeMatch`. Don't grant `settleMatch` permission to AuditCouncil — only Arena calls that.
+- `LeagueScheduler` (Phase 4) does NOT need Treasury operator status — it goes through `Arena.openRealStakes` which forwards to Treasury.
+- **Payout fallback to season fund** — if an NFT owner's `.call{value}` fails (e.g. contract that rejects ETH), the payout is added to `seasonFund` rather than getting stuck. This is good UX defence; document in the technical writeup.
+- **Drain target:** `seasonFundRecipient` is settable by owner. For the season-end bonus to top of the ELO ladder (spec §3.5), Phase 5 should add a `distributeSeasonFund(uint256[] rankedAgentIds)` function with weighted distribution similar to per-match payout.
+
+**Indexer additions for Phase 5:**
+- Treasury events to index: `MatchEscrowed`, `MatchSettled` (Treasury's, namespace-collision with Arena's; index by event-emitter address), `MatchRefunded`, `MatchFrozen`, `MatchUnfrozen`, `PayoutSent` (per-owner — Profile page lifetime earnings), `PayoutFailed`, `SeasonFundDrained`.
+- `WinnerDeclared(matchId indexed, winnerAgentId indexed, int256 score)` is now emitted from Arena alongside `MatchSettled` — index it for cheap "matches won by agent X" queries.
+
+**Operating-funds separation:**
+- Arena needs operating STT for `inferChat`/JSON API calls. `openRealStakes` accepts `msg.value = pot + extra`; the extra stays in `address(this).balance` and funds platform calls.
+- For Phase 4 LeagueScheduler: the scheduler sends `pot + operating` to `Arena.openRealStakes` on each tick. Alternative: keep Arena pre-funded with a larger one-time operating reserve. **Phase 4 design decision** — pre-funded is simpler operationally; per-tick sends keep accounting cleaner.
+
+**Cost tracking (post-Match #2):**
+- Match #2 real-stakes cost ~10 STT operating + 5 STT rake retained = ~15 STT net (excluding pot recycling, which is owner-to-owner movement).
+- Phase 6 plan: 3 real-stakes seasons × 3 matches = ~135 STT operating + ~45 STT rake. Budget ~200 STT for the recorded-runs phase.
+- Current balance 177 STT comfortably covers Phase 3 + Phase 4 spike. May need a top-up before Phase 6 recordings.
+
+**Untested-but-likely-fine paths to verify in Phase 3 tests:**
+- `Treasury.refundMatch` via `Arena._handlePricing` failure on a RealStakes match (we tested it via unit test in `TreasuryTest.testRefundOnVoid`, but the integration path from Arena is untested on testnet).
+- Forfeit penalty in real-stakes — currently `scores[i] -= int256(m.budget[i])` which is `25 ether` in real-stakes. That score number wildly dwarfs normal profit (~50–100). Forfeited agents will always rank last (which is what we want), but the math is unrealistic. Phase 3: cap forfeit penalty at some sane value like `entryStake / 1e18` or similar.
+
 ## Phase 0 — verification spikes (days 1–2, blocking)
 
 Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and on-chain tx links inline.
