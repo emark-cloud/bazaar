@@ -57,7 +57,9 @@ abstract contract AgentPlatformBase {
             + (perAgentPrice * subcommitteeSize);
     }
 
-    /// @dev Send a standard request. Reverts cleanly if msg.value is below required deposit.
+    /// @dev Send a standard request. Draws from the contract's balance so internal callbacks
+    /// (which arrive with msg.value=0) can fan out further requests against a pre-funded balance.
+    /// External payable callers top up `address(this).balance` via `msg.value` before _send runs.
     function _send(
         uint256 agentId,
         bytes4 callbackSelector,
@@ -67,7 +69,7 @@ abstract contract AgentPlatformBase {
         bytes32 context
     ) internal returns (uint256 requestId) {
         uint256 deposit = _depositFor(perAgentPrice, subcommitteeSize);
-        if (msg.value < deposit) revert Underfunded(msg.value, deposit);
+        if (address(this).balance < deposit) revert Underfunded(address(this).balance, deposit);
 
         requestId = platform.createRequest{value: deposit}(
             agentId, address(this), callbackSelector, payload
@@ -76,7 +78,7 @@ abstract contract AgentPlatformBase {
         emit RequestSent(requestId, agentId, deposit);
     }
 
-    /// @dev Send an advanced request (custom subcommittee/threshold/consensus/timeout).
+    /// @dev Send an advanced request. Same balance-based gating as `_send`.
     function _sendAdvanced(
         uint256 agentId,
         bytes4 callbackSelector,
@@ -89,7 +91,7 @@ abstract contract AgentPlatformBase {
         bytes32 context
     ) internal returns (uint256 requestId) {
         uint256 deposit = _advancedDepositFor(perAgentPrice, subcommitteeSize);
-        if (msg.value < deposit) revert Underfunded(msg.value, deposit);
+        if (address(this).balance < deposit) revert Underfunded(address(this).balance, deposit);
 
         requestId = platform.createAdvancedRequest{value: deposit}(
             agentId, address(this), callbackSelector, payload,
