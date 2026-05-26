@@ -82,3 +82,83 @@ blk 392455872  MatchSettled    winner=agent1 (Hawk)
 - Match-open `msg.value`: 2.5 STT (funds the contract's outgoing platform requests)
 - Net spend: ~2.5 STT (deploys + match)
 - Deployer balance after: 19.06 STT
+
+---
+
+## Match #2 — Phase 2 first REAL-STAKES match (2026-05-26)
+
+**The Phase 2 ship gate.** First Bazaar match with real STT changing hands. Treasury escrows the pot, distributes by rank-weighted scores on settlement, takes 5% rake.
+
+### Deployments (Phase 2)
+| Contract | Address |
+|---|---|
+| `Treasury` | `0xff98f2e254913fdf4edc8449b1847d2602e67a0f` |
+| `Arena` (v2, wired to Treasury) | `0xee635038bae5d19e3fe72ececf1c03de4319de59` |
+| `AgentRegistry` (Phase 1, unchanged) | `0xC277c3DE929e41625e9c87D0F4877585466285f1` |
+
+### Match config
+- Kind: **RealStakes**
+- Entry stake: 25 STT × 4 agents = **100 STT pot**
+- Operating funds passed: 5 STT (stays in Arena for `inferChat` / pricing calls)
+- Rounds: 2, Lots: 2 (ETH-USD with divisor=1 → ~$2000 effective, SOL-USD divisor=1 → ~$85)
+- Opening tx: `0xc3f6d498eefe3d26c24bea379fbedc4dc61759a6c7b562c5401e27cb40359156`
+- Open block 392471796 → settle block 392471869 (73 blocks, ~75 s)
+
+### Event timeline
+
+```
+blk 392471796  MatchOpened
+blk 392471801  LotPriced       lot=1 commit=0x86e6b740...
+blk 392471802  LotPriced       lot=0 commit=0x56da633e...
+blk 392471802  NegotiationStarted
+
+R1.T0 Hawk        OFFER|lot=1|side=BUY|price=2000
+R1.T1 Diplomat    OFFER|lot=1|side=BUY|price=2000   (ties — doesn't displace)
+R1.T2 Quant       OFFER|lot=2|side=BUY|price=85
+R1.T3 Contrarian  COUNTER|lot=1|price=2001          (takes ETH by +1)
+
+R2.T0 Hawk        COALITION|partner=2|share=50      → REJECTED (Diplomat has no standing offer)
+R2.T1 Diplomat    COALITION|partner=1|share=50      → REJECTED (Hawk has no standing offer)
+R2.T2 Quant       COALITION|partner=4|share=50      → ACCEPTED (Contrarian standing offer on lot 0)
+R2.T3 Contrarian  COALITION|partner=4|share=50      → REJECTED (self-coalition)
+
+blk 392471869  LotSold        lot=0 buyer=Contrarian (coalition partner=Quant) price=2001
+blk 392471869  LotSold        lot=1 buyer=Quant price=85
+blk 392471869  LotRevealed    lot=0 trueValue=2098 (ETH-USD)
+blk 392471869  LotRevealed    lot=1 trueValue=84   (SOL-USD)
+blk 392471869  MatchSettled
+blk 392471869  WinnerDeclared winner=Contrarian, score=49
+```
+
+### Settlement math
+| Agent | Lot owned | Coalition | Effective profit | Total score |
+|---|---|---|---|---|
+| Contrarian | lot 0 @ 2001 | with Quant 50/50 | (2098−2001)/2 ≈ +49 | **+49 (winner)** |
+| Quant | lot 1 @ 85 + lot 0 partner | with Contrarian on lot 0 | (2098−2001)/2 + (84−85) = 48 − 1 | **+47** |
+| Hawk | — | — | 0 | 0 |
+| Diplomat | — | — | 0 | 0 |
+
+### Treasury payout
+- Pot = 100 STT
+- Rake = 5 STT (5%) → season fund
+- Distributable = 95 STT, split by `Treasury._weights(4)` = 50 / 28 / 15 / 7
+- Ranked owners (all = deployer here since deployer minted all 4 NFTs):
+  - Contrarian's owner: **47.5 STT**
+  - Quant's owner: **26.6 STT**
+  - Hawk's owner: **14.25 STT**
+  - Diplomat's owner: **6.65 STT**
+- Treasury.seasonFund(): **5 STT** ✓
+
+### Observations
+1. **Genuine strategic behavior emerged.** With the negotiation log in the prompt, agents:
+   - Targeted different lots (Quant chose SOL while others fought over ETH)
+   - Counter-bid by minimum increment (Contrarian +1 over Hawk)
+   - Attempted 3 coalitions — 1 accepted, 2 rejected for valid rules-engine reasons
+2. **Self-coalition rejection** caught a real LLM error (Contrarian tried `partner=4` = itself).
+3. **Tied-bid quirk:** Diplomat's OFFER at the same price as Hawk's standing offer doesn't displace it. Move parses OK, doesn't error, just doesn't change state. Worth documenting in the rules.
+4. **Real STT moved end-to-end** — pot escrowed, distributed by rank, rake captured. The economics loop is complete.
+
+### Cost
+- `msg.value`: 105 STT (100 pot + 5 operating)
+- Net spend = 5 STT (rake to Treasury) + ~3 STT (operating, plus minor unrebated agent fees)
+- Deployer balance after: 177.45 STT (was 187.5 — net −10, of which 5 is in Treasury season fund)

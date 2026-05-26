@@ -8,6 +8,7 @@ import {IJsonApiAgent} from "./interfaces/IJsonApiAgent.sol";
 import {Request, Response, ResponseStatus, ConsensusType} from "./interfaces/IAgentPlatform.sol";
 import {AgentRegistry} from "./AgentRegistry.sol";
 import {RulesEngine} from "./lib/RulesEngine.sol";
+import {ITreasury} from "./interfaces/ITreasury.sol";
 
 /// @title Arena — the autonomous negotiation auctioneer
 /// @notice One contract owns the full match lifecycle: pricing → negotiating → settling.
@@ -20,11 +21,16 @@ contract Arena is AgentPlatformBase {
     enum MatchPhase { None, Pricing, Negotiating, Settling, Finalized, Voided }
 
     /// Input shape for opening a match (caller provides feed config only).
+    /// `valueDivisor` maps raw JSON-API value to "lot worth in STT-int" so profit math
+    /// is dimensionally consistent with `paidPrice`. `valueHint` is a short string
+    /// included in the prompt so agents can bid sensibly (e.g. "typically 70-120").
     struct LotTemplate {
-        string  category;          // short label e.g. "ETH-USD x100" — used in prompts
+        string  category;          // short label e.g. "ETH-USD" — used in prompts
         string  feedUrl;           // JSON API URL
         string  feedSelector;      // JSON dot-path selector
         uint8   feedDecimals;      // decimals scaling for fetchUint
+        uint256 valueDivisor;      // raw value / divisor = effective STT-int worth. Must be ≥ 1.
+        string  valueHint;         // prompt-only hint string, e.g. "typically 70-120 STT"
     }
 
     /// Full on-chain lot state.
@@ -33,8 +39,10 @@ contract Arena is AgentPlatformBase {
         string  feedUrl;
         string  feedSelector;
         uint8   feedDecimals;
+        uint256 valueDivisor;
+        string  valueHint;
         bytes32 valueCommitment;   // keccak256(value, salt) — sealed until settlement
-        uint256 revealedValue;     // 0 until reveal
+        uint256 revealedValue;     // 0 until reveal — raw value from JSON API
         bool    revealed;
         // Holdings
         uint256 ownerAgentId;      // 0 = unowned, otherwise winning agent
@@ -65,6 +73,10 @@ contract Arena is AgentPlatformBase {
     uint256 public nextMatchId = 1;
     mapping(uint256 => Match) internal _matches;
     mapping(uint256 => mapping(uint8 => Lot)) internal _lots; // matchId => lotIndex(0-based) => lot
+    /// Compact negotiation log: each entry is one move's prompt-friendly summary. Used to give the
+    /// LLM the prior move context so agents can react to each other. Capped per match.
+    mapping(uint256 => string[]) internal _log;
+    uint256 public constant MAX_LOG_ENTRIES = 64;
 
     /// pendingRequest context byte layout (we store keccak in pendingRequests, decoded via reqMeta):
     mapping(uint256 => bytes32) internal _reqMatchKey; // requestId => keccak(matchId, kind)
@@ -95,6 +107,7 @@ contract Arena is AgentPlatformBase {
     event AgentForfeited(uint256 indexed matchId, uint256 agentId);
     event LotRevealed(uint256 indexed matchId, uint8 lotIndex, uint256 trueValue);
     event MatchSettled(uint256 indexed matchId, uint256[] agentIds, int256[] scores, uint256 winnerAgentId);
+    event WinnerDeclared(uint256 indexed matchId, uint256 indexed winnerAgentId, int256 winnerScore);
     event MatchVoided(uint256 indexed matchId, string reason);
 
     error InvalidMatch(uint256 matchId);
@@ -102,8 +115,11 @@ contract Arena is AgentPlatformBase {
     error TooFewAgents(uint256 provided);
     error NotJoinable(uint256 agentId);
 
-    constructor(address platform_, address registry_) AgentPlatformBase(platform_) {
+    ITreasury public treasury;
+
+    constructor(address platform_, address registry_, address treasury_) AgentPlatformBase(platform_) {
         registry = AgentRegistry(registry_);
+        treasury = ITreasury(treasury_);
     }
 
     // --- Match lifecycle ------------------------------------------------------------------
@@ -137,20 +153,66 @@ contract Arena is AgentPlatformBase {
             m.budget.push(startingBudget);
         }
 
-        // Seed lots (templates carry feed config; valueCommitment filled in by callbacks)
+        _seedLots(matchId, lotTemplates);
+        emit MatchOpened(matchId, MatchKind.Exhibition, agentIds, rounds, m.numLots);
+        for (uint8 i = 0; i < m.numLots; i++) {
+            _firePricingRequest(matchId, i);
+        }
+    }
+
+    /// @notice Open a real-stakes match. Caller sends `entryStake × agentIds.length` in msg.value;
+    /// the pot is forwarded to Treasury at open. Contract operating funds for agent platform calls
+    /// must already be in `address(this).balance` (refill via a plain transfer).
+    function openRealStakes(
+        uint256[] calldata agentIds,
+        uint256 entryStake,
+        uint8 rounds,
+        LotTemplate[] calldata lotTemplates
+    ) external payable returns (uint256 matchId) {
+        if (agentIds.length < 2 || agentIds.length > 8) revert TooFewAgents(agentIds.length);
+        require(lotTemplates.length >= 1 && lotTemplates.length <= 8, "1..8 lots");
+        require(rounds >= 1 && rounds <= 16, "1..16 rounds");
+        require(address(treasury) != address(0), "no treasury");
+        uint256 expected = entryStake * agentIds.length;
+        require(msg.value >= expected, "underfunded stake");
+
+        matchId = nextMatchId++;
+        Match storage m = _matches[matchId];
+        m.kind = MatchKind.RealStakes;
+        m.phase = MatchPhase.Pricing;
+        m.rounds = rounds;
+        m.currentRound = 1;
+        m.numLots = uint8(lotTemplates.length);
+        m.openedAt = block.timestamp;
+        m.agentIds = agentIds;
+
+        address[] memory owners = new address[](agentIds.length);
+        for (uint256 i = 0; i < agentIds.length; i++) {
+            AgentRegistry.Agent memory a = registry.getAgent(agentIds[i]);
+            if (!a.joinable) revert NotJoinable(agentIds[i]);
+            owners[i] = registry.ownerOf(agentIds[i]);
+            registry.setJoinable(agentIds[i], false);
+            m.budget.push(entryStake);
+        }
+        treasury.escrowMatch{value: expected}(matchId, agentIds, owners, entryStake);
+
+        _seedLots(matchId, lotTemplates);
+        emit MatchOpened(matchId, MatchKind.RealStakes, agentIds, rounds, m.numLots);
+        for (uint8 i = 0; i < m.numLots; i++) {
+            _firePricingRequest(matchId, i);
+        }
+    }
+
+    function _seedLots(uint256 matchId, LotTemplate[] calldata lotTemplates) internal {
         for (uint8 i = 0; i < lotTemplates.length; i++) {
+            require(lotTemplates[i].valueDivisor > 0, "divisor=0");
             Lot storage L = _lots[matchId][i];
             L.category = lotTemplates[i].category;
             L.feedUrl = lotTemplates[i].feedUrl;
             L.feedSelector = lotTemplates[i].feedSelector;
             L.feedDecimals = lotTemplates[i].feedDecimals;
-        }
-
-        emit MatchOpened(matchId, MatchKind.Exhibition, agentIds, rounds, m.numLots);
-
-        // Fire JSON API pricing requests
-        for (uint8 i = 0; i < m.numLots; i++) {
-            _firePricingRequest(matchId, i);
+            L.valueDivisor = lotTemplates[i].valueDivisor;
+            L.valueHint = lotTemplates[i].valueHint;
         }
     }
 
@@ -197,6 +259,9 @@ contract Arena is AgentPlatformBase {
             m.phase = MatchPhase.Voided;
             emit MatchVoided(ctx.matchId, "pricing failed");
             _releaseAgents(ctx.matchId);
+            if (m.kind == MatchKind.RealStakes && address(treasury) != address(0)) {
+                treasury.refundMatch(ctx.matchId);
+            }
             return;
         }
 
@@ -260,39 +325,70 @@ contract Arena is AgentPlatformBase {
         roles[1] = "user";
         messages = new string[](2);
         messages[0] = string.concat(
-            "You are agent \"", a.name, "\" in Bazaar.\n",
-            "Strategy ref: ", a.promptURI, "\n",
-            "Output EXACTLY one move, no prose:\n",
-            "  OFFER|lot=<N>|side=BUY|price=<int_STT>\n",
-            "  OFFER|lot=<N>|side=SELL|price=<int_STT>\n",
-            "  COUNTER|lot=<N>|price=<int_STT>\n",
-            "  COALITION|partner=<agentId>|share=<int_pct>\n",
-            "  PASS\n",
-            "Lot indices are 1-based. Bid only within your budget."
+            "You are agent \"", a.name, "\" in Bazaar - an on-chain auction where AI agents bid against each other.\n",
+            "Strategy: ", a.promptURI, "\n\n",
+            "FORMAT (return EXACTLY one line, no prose, no markdown, no quotes):\n",
+            "  OFFER|lot=<N>|side=BUY|price=<int>\n",
+            "  COUNTER|lot=<N>|price=<int>\n",
+            "  COALITION|partner=<int>|share=<int>\n",
+            "  PASS\n\n",
+            "RULES (will reject if violated):\n",
+            "- price must be an INTEGER. No decimals, no commas, no underscores, no unit suffix.\n",
+            "  OK: price=14    NOT OK: price=14_STT, price=14.5, price=1,400\n",
+            "- price must be <= your remaining budget.\n",
+            "- lot indices are 1-based.\n",
+            "- COUNTER must beat the standing offer.\n\n",
+            "GOAL: maximize your end-of-match score. Score = (lot true value / divisor) - paid price for each lot you own."
         );
-        // Phase-1 simplified state: budget + round + lot list (no full negotiation log yet for size sanity).
-        // TODO Phase 1: extend with negotiation log once we've validated determinism at scale.
         messages[1] = _renderState(matchId, agentId);
     }
 
     function _renderState(uint256 matchId, uint256 agentId) internal view returns (string memory) {
         Match storage m = _matches[matchId];
-        // Find this agent's budget
         uint256 budget;
         for (uint256 i = 0; i < m.agentIds.length; i++) {
             if (m.agentIds[i] == agentId) { budget = m.budget[i]; break; }
         }
         bytes memory buf = abi.encodePacked(
-            "Round ", _u(m.currentRound), " of ", _u(m.rounds),
-            ". Budget=", _u(budget), " STT.\nLots:\n"
+            "Match ", _u(matchId), " | Round ", _u(m.currentRound), "/", _u(m.rounds),
+            " | You: agent=", _u(agentId), " budget=", _u(budget), "\n",
+            "Lots (hint = expected effective value after divisor):\n"
         );
         for (uint8 i = 0; i < m.numLots; i++) {
             Lot storage L = _lots[matchId][i];
-            string memory status = L.ownerAgentId == 0 ? " status=unowned" : " status=sold";
-            buf = abi.encodePacked(buf, "  ", _u(uint256(i)+1), " category=", L.category, status, "\n");
+            buf = abi.encodePacked(buf,
+                "  ", _u(uint256(i)+1), ") ", L.category, " | divisor=", _u(L.valueDivisor),
+                " | hint=", L.valueHint
+            );
+            if (L.ownerAgentId != 0) {
+                buf = abi.encodePacked(buf, " | SOLD to agent ", _u(L.ownerAgentId), " at ", _u(L.paidPrice));
+            } else if (L.standingOfferPrice > 0) {
+                buf = abi.encodePacked(buf, " | standing offer ", _u(L.standingOfferPrice), " from agent ", _u(L.standingOfferBy));
+            } else {
+                buf = abi.encodePacked(buf, " | open");
+            }
+            buf = abi.encodePacked(buf, "\n");
         }
-        buf = abi.encodePacked(buf, "Your turn. Choose a move.");
+
+        // Negotiation log (compact, one line per recorded move). Cap visible entries to last 32 for prompt size.
+        string[] storage log = _log[matchId];
+        uint256 n = log.length;
+        uint256 start = n > 32 ? n - 32 : 0;
+        if (n > 0) {
+            buf = abi.encodePacked(buf, "Log:\n");
+            for (uint256 i = start; i < n; i++) {
+                buf = abi.encodePacked(buf, "  ", log[i], "\n");
+            }
+        }
+        buf = abi.encodePacked(buf, "Your turn. Output one move line.");
         return string(buf);
+    }
+
+    function _logEntry(uint256 matchId, uint256 agentId, string memory action) internal {
+        string[] storage log = _log[matchId];
+        if (log.length >= MAX_LOG_ENTRIES) return; // hard cap; prompt window has a soft cap of 32
+        Match storage m = _matches[matchId];
+        log.push(string.concat("R", _u(m.currentRound), ".T", _u(m.currentTurnIdx), " a", _u(agentId), " ", action));
     }
 
     /// @notice Callback for inferChat move generation.
@@ -319,9 +415,11 @@ contract Arena is AgentPlatformBase {
         (bool ok, string memory reason) = _applyMove(ctx.matchId, agentId, ctx.turnIdx, raw);
         if (ok) {
             emit MoveMade(ctx.matchId, ctx.roundNumber, ctx.turnIdx, agentId, raw);
+            _logEntry(ctx.matchId, agentId, raw);
             m.consecutiveDefaults[ctx.turnIdx] = 0;
         } else {
             emit MoveRejected(ctx.matchId, ctx.roundNumber, ctx.turnIdx, agentId, raw, reason);
+            _logEntry(ctx.matchId, agentId, string.concat("REJECTED(", reason, ")"));
             _incrementDefault(ctx.matchId, ctx.turnIdx, agentId);
         }
         _advanceTurn(ctx.matchId);
@@ -470,8 +568,9 @@ contract Arena is AgentPlatformBase {
                 emit LotRevealed(matchId, i, L.revealedValue);
             }
             if (L.ownerAgentId == 0) continue;
-            // Profit = revealedValue - paidPrice
-            int256 profit = int256(L.revealedValue) - int256(L.paidPrice);
+            // Profit = effectiveValue - paidPrice  (both in STT-int via valueDivisor normalization)
+            uint256 effective = L.valueDivisor == 0 ? L.revealedValue : (L.revealedValue / L.valueDivisor);
+            int256 profit = int256(effective) - int256(L.paidPrice);
             if (L.coalitionPartner == 0) {
                 _addScore(m.agentIds, scores, L.ownerAgentId, profit);
             } else {
@@ -504,6 +603,42 @@ contract Arena is AgentPlatformBase {
         m.phase = MatchPhase.Finalized;
         m.finalizedAt = block.timestamp;
         emit MatchSettled(matchId, m.agentIds, scores, m.agentIds[winnerIdx]);
+        emit WinnerDeclared(matchId, m.agentIds[winnerIdx], scores[winnerIdx]);
+
+        // RealStakes: have Treasury distribute the pot by score-descending rank.
+        if (m.kind == MatchKind.RealStakes && address(treasury) != address(0)) {
+            uint256[] memory ranked = _rankByScore(m.agentIds, scores, m.forfeited);
+            treasury.settleMatch(matchId, ranked);
+        }
+    }
+
+    /// @dev Sort agentIds by score descending; forfeited agents pushed to the end.
+    function _rankByScore(uint256[] storage agentIds, int256[] memory scores, bool[8] storage forfeited)
+        internal view returns (uint256[] memory ranked)
+    {
+        uint256 n = agentIds.length;
+        ranked = new uint256[](n);
+        int256[] memory sc = new int256[](n);
+        bool[] memory ff = new bool[](n);
+        for (uint256 i = 0; i < n; i++) {
+            ranked[i] = agentIds[i];
+            sc[i] = scores[i];
+            ff[i] = forfeited[i];
+        }
+        // simple selection sort (n ≤ 8 — overkill is fine)
+        for (uint256 i = 0; i < n; i++) {
+            uint256 bestK = i;
+            for (uint256 j = i + 1; j < n; j++) {
+                // forfeited always ranks below non-forfeited
+                if (ff[bestK] && !ff[j]) bestK = j;
+                else if (ff[bestK] == ff[j] && sc[j] > sc[bestK]) bestK = j;
+            }
+            if (bestK != i) {
+                (ranked[i], ranked[bestK]) = (ranked[bestK], ranked[i]);
+                (sc[i], sc[bestK]) = (sc[bestK], sc[i]);
+                (ff[i], ff[bestK]) = (ff[bestK], ff[i]);
+            }
+        }
     }
 
     function _addScore(uint256[] storage agentIds, int256[] memory scores, uint256 agentId, int256 delta) internal view {
