@@ -7,20 +7,47 @@ Check items off as they ship. A phase is done only when its **demo artifact** ru
 
 ## Setup (day 1, parallelizable with Phase 0)
 
-- [ ] Initialize git repo at `/home/emark/bazaar/`; first commit with the three specs + CLAUDE.md + TODO.md
-- [ ] `pnpm-workspace.yaml` + root `package.json` with workspaces: `contracts`, `frontend`, `indexer`, `starter-kit`
-- [ ] `contracts/` — `forge init --no-git`; commit `foundry.toml` with Solidity 0.8.30 (matches reactivity-contracts target)
-- [ ] `frontend/` — `pnpm create vite frontend --template react-ts`; install viem + Tailwind
-- [ ] `.env.example` at root (locked after Phase 0.1)
-- [ ] Create funding wallet; record address; export private key to `.env` (gitignored)
+- [x] Initialize git repo at `/home/emark/bazaar/`; first commit with the three specs + CLAUDE.md + TODO.md
+- [x] `pnpm-workspace.yaml` + root `package.json` with workspaces: `contracts`, `frontend`, `indexer`, `starter-kit`
+- [x] `contracts/` — `forge init --no-git`; commit `foundry.toml` with Solidity 0.8.30 (matches reactivity-contracts target). **Note:** `via_ir = true` required for `inferToolsChat`'s 6-tuple decode.
+- [ ] `frontend/` — `pnpm create vite frontend --template react-ts`; install viem + Tailwind (cancelled in Phase 0; resume at Phase 5)
+- [x] `.env.example` at root (locked after Phase 0.1)
+- [x] Create funding wallet; record address; export private key to `.env` (gitignored)
+
+## Phase 0 learnings to carry forward — read before starting any later phase
+
+**Architecture-critical:**
+- `inferChat` is **deterministic** under `Majority` for short prompts (Phase 0.4 confirmed byte-identical results across the subcommittee). **Open question** — revalidate determinism with realistic-length negotiation-log payloads (~10–30 KB messages) before Phase 1 ships the full move loop. If it diverges at scale, fall back to `Threshold` + canonical-move selector per `docs/TECHNICAL.md`.
+- `LLM Parse Website` runs `Qwen3-30B-A3B` with **`temperature: 0.7, top_p: 0.8`** — outputs are **non-deterministic**. AuditCouncil (Phase 3) MUST use `Threshold` consensus and aggregate on-chain (median for `ExtractANumber`, plurality for `ExtractString`). Never use `Majority` for Parse Website.
+- Parse Website returns a 4-field `structured_output`: `reasoning` (str), `answerable` (bool), `confidence_score` (int 0–100), `<user-named field>`. **Phase 3 audit must check `answerable=true` AND `confidence_score >= threshold`** before trusting the value, not just decode the raw result.
+- `inferToolsChat` canonical signature: `inferToolsChat(string[],string[],string[],(string,string)[],uint256,bool)` selector `0xd0683905`. The `OnchainTool` struct is two strings (likely name+description) — Bazaar passes empty `[]` so field names don't matter, but the struct shape must be in the interface or the selector is wrong.
+- `inferToolsChat` MCP path completes in **one invocation** (no `tool_calls` resume loop) — verified with `mcp.deepwiki.com/mcp`. Bazaar's intel showcase ships as a single call.
+
+**Practical:**
+- **The Agent Explorer (`agents.somnia.network/agent/<id>`) is the source of truth, not the docs page.** Every method's docs page has at least one stale or missing parameter. Always verify signatures on the Explorer when touching a new method.
+- **Receipts pages (`agents.testnet.somnia.network/receipts/<id>`) are fully client-rendered.** `curl` cannot read them; only a real browser. For programmatic diagnostics use `platform.getRequest(uint256)` if we ever solve its 0x4ec726c7 revert (see open questions below).
+- **`RequestCreated` event** indexes `requestId` (topic[1]) AND `agentId` (topic[2]) — indexer can filter per-agent-type cheaply. Payload bytes are in event `data`.
+- **Per-request effective cost** averages **~0.3 STT** at default subcommittee 3 (~30% rebate vs deposit ceiling). Spec §6 cost model holds.
+- **`forge script` simulating against testnet errors** with `NotActivated` when reading platform state — Somnia uses custom opcodes the simulator doesn't model. Use `cast call` for view reads, and `--skip-simulation --broadcast` for writes.
+- **Validation-rejection vs agent-failure** both return `ResponseStatus.Failed` (3) — only the receipt distinguishes. Validation failures complete in ~4 blocks; agent failures take 30–120s. Phase 5 indexer should derive this from block latency or surface the receipt URL.
+
+**Deferred Phase 0 spikes** (now prerequisites for later phases — addressed below):
+- 0.8 Reactivity 32 STT lock + per-callback gas → Phase 4 prereq
+- 0.9 VRF spike → Phase 3 prereq
+- Top up STT (we're at 22 STT; need 32 lock + buffer for Phase 4 + many matches for Phase 6)
+
+**Open questions** (not blocking but worth resolving when convenient):
+- `platform.getRequest(uint256)` reverts with custom error `0x4ec726c7` for our finalized requests. Maybe requests are pruned post-finalization, or our struct decode is slightly off. Investigate before Phase 5 indexer if we want on-chain receipt access.
+- Largest `inferChat` payload that still deterministic? (above)
+- For Parse Website search-mode (`resolveUrl=true`): the prompt is used verbatim as the search query, so it must be a search-friendly keyword string, not a question. Bazaar doesn't use search mode, but worth knowing.
 
 ## Phase 0 — verification spikes (days 1–2, blocking)
 
 Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and on-chain tx links inline.
 
-- [ ] **0.1 Endpoints** — hit both candidate testnet RPCs and both Agent Explorer URLs (resources.md §1.1); lock the working set into `.env.example`
-- [ ] **0.2 Real agent IDs** — pull live IDs for LLM Inference, JSON API Request, LLM Parse Website from the Agent Explorer; commit to `contracts/src/lib/AgentIds.sol`
-- [ ] **0.3 STT funding** — request testnet STT in Somnia Discord `#dev-chat` **with a Bazaar pitch** (resources §7). Target: 600 STT + 32 STT for scheduler. Faucet is a top-up only.
+- [x] **0.1 Endpoints** — `api.infra.testnet.somnia.network` locked as primary; chainId 50312 confirmed
+- [x] **0.2 Real agent IDs** — in `contracts/src/lib/AgentIds.sol`
+- [x] **0.3 STT funding (initial 30 STT)** — used ~7.6 STT for Phase 0; **need to top up before Phase 4** (32 STT scheduler lock + buffer)
 - [x] **0.4 `MoveDecider` spike** — `inferChat` returned byte-identical `"OFFER|lot=1|side=BUY|price=10"` across the subcommittee under `Majority`. **Determinism confirmed.**
 - [x] **0.4a Determinism fallback decision** — **NOT INVOKED** (0.4 succeeded). Spec §3.2 Majority loop stands verbatim.
 - [x] **0.5 JSON API spike** — `fetchUint` returned SOL-USD = $85.61 (scaled by 10²). Deposit math correct.
@@ -33,8 +60,9 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 
 ## Phase 1 — Arena core, exhibition only (days 3–6)
 
-- [ ] `contracts/src/interfaces/` — copy verified `Request`/`Response`/`ConsensusType`/`ResponseStatus` structs once; import everywhere
-- [ ] `contracts/src/lib/AgentPlatformBase.sol` — shared base: `platform` immutable, deposit helper, callback gate modifier, `pendingRequests` mapping, `receive() external payable {}`
+- [x] `contracts/src/interfaces/` — `IAgentPlatform`, `ILlmAgent`, `IJsonApiAgent`, `IParseWebsiteAgent` all canonical (verified live)
+- [x] `contracts/src/lib/AgentPlatformBase.sol` — built in Phase 0; rules 1–4 encoded; `_send` and `_sendAdvanced` helpers; `receive()`. Reuse as-is.
+- [ ] **PRECHECK** — before Phase 1 negotiation loop ships, spike `inferChat` with a realistic-length prompt (full persona + arena state + 5-round log = ~10–20 KB messages). Confirm `byteIdentical=true` still holds. If not, switch to `Threshold` + lowest-keccak canonical selector inside `handleMove`.
 - [ ] `contracts/src/AgentRegistry.sol` — ERC-721, persona pointer (content hash + URI), ELO ledger, discovery view functions (`listJoinableAgents`, `getAgent`)
 - [ ] `contracts/src/Arena.sol` skeleton — states `Open → Pricing → Negotiating → Settling → Audited → Finalized`; storage for matches, turns, lots, holdings, coalitions
 - [ ] Rules engine — parse structured move string (`OFFER|lot=X|side=BUY|price=Y` etc.); validate against game state; reject illegal
@@ -58,20 +86,32 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 
 ## Phase 3 — AuditCouncil (days 9–10)
 
+**Prereqs from Phase 0:**
+- [ ] **VRF spike (formerly Phase 0.9)** — deploy `RandomNumberConsumer` against Protofire VRF v2.5 wrapper (testnet `0x763cC914d5CA79B04dC4787aC14CcAd780a16BD2`); call `getRequestPrice()`; complete one `fulfillRandomWords` cycle. Confirms VRF cost model and confirms async-hop UX.
+
+**Build:**
 - [ ] `contracts/src/AuditCouncil.sol` inheriting `VRFV2PlusWrapperConsumerBase` (Chainlink wrapper, paid in native STT); fund with LINK-equivalent native STT per `getRequestPrice()`
 - [ ] Hook from `Arena.audited` after settlement
 - [ ] Step 1: `requestRandomness()` for K=3 auditor seats
 - [ ] Step 2: `fulfillRandomWords` picks K auditors from `AgentRegistry` (exclude match competitors)
 - [ ] Step 3: per auditor → `createAdvancedRequest` with `inferString` + `allowedValues=["clean","suspect"]`, `Threshold` consensus, subcommittee 5 / threshold 3
 - [ ] Step 4: 2 lots cross-checked with `LLM Parse Website` against the JSON API value
+  - **Use `Threshold` consensus** — Parse Website is non-deterministic (Phase 0 finding)
+  - **On-chain aggregation:** for numeric (`ExtractANumber`) → median across validators; for string (`ExtractString`) → plurality. Encode helpers in `AuditCouncil.sol`.
+  - **Parse Website call recipe:** direct URL only (`resolveUrl=false`), small focused page (e.g. `simple.wikipedia.org`-class), `numPages=1`, `confidenceThreshold=20–40`, single-value question prompt. Audit only accepts results where `answerable=true` AND `confidence_score >= confidenceThreshold` (decode all 4 fields, not just the value).
 - [ ] Step 5: quorum — 2-of-3 `suspect` → `Treasury.freezeMatch()`; else finalize
 - [ ] Appeal window timeout — fail-open to `clean` for liveness; verdict log stays on-chain
-- [ ] Forge tests — quorum logic; freeze path; competitor-exclusion in auditor selection
+- [ ] Forge tests — quorum logic; freeze path; competitor-exclusion in auditor selection; numeric-median and plurality-string aggregators
 - [ ] Deploy `AuditCouncil` to testnet; wire to `Arena` + `Treasury`
 - [ ] **Demo artifact:** induced-bad-data test produces `suspect` verdict and freezes a match; clean match passes audit
 
 ## Phase 4 — LeagueScheduler (day 11)
 
+**Prereqs:**
+- [ ] **STT top-up** — current balance ~22 STT; need 50 STT to fund the scheduler (32 lock + per-callback gas). Ask DevRel again, this time with a live Phase 1+2 demo to point at.
+- [ ] **Reactivity spike (formerly Phase 0.8)** — deploy tutorial `SomniaEventHandler`; **empirically confirm** the 32 STT owner-balance requirement; measure per-callback gas for a realistic `LeagueScheduler.openMatch` payload. Decide on-chain vs SDK cron based on measured cost. If on-chain > 0.1 STT/callback → fall back to SDK cron per the plan's cut order.
+
+**Build:**
 - [ ] `contracts/src/LeagueScheduler.sol` using `@somnia-chain/reactivity-contracts` (`SomniaEventHandler`)
 - [ ] Subscribe to `Arena.MatchFinalized` with explicit `emitter = address(arena)` (no wildcards)
 - [ ] Callback handler: pick highest-ranked joinable agents from `AgentRegistry`; deposit match funding from scheduler balance; call `Arena.openMatch()`
@@ -89,7 +129,7 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 - [ ] `AppShell` (top bar + left icon rail)
 - [ ] `SigilTile` with idle/thinking/acting/coalition/victory animation states (design.md §2.2)
 - [ ] `AgentPanel`, `NegotiationStream` (Transcript + OrderBook toggle), `TranscriptLine`, `OrderBookRow`, `LotCard`, `MiniLadder` (FLIP reorder), `MoveLogRow`
-- [ ] `TraceWaterfall` + `ReceiptLink` — the chain-is-always-one-toggle-away layer; links to `receipts.testnet.agents.somnia.host?requestId=<id>`
+- [ ] `TraceWaterfall` + `ReceiptLink` — the chain-is-always-one-toggle-away layer. **Correct receipt URL:** `https://agents.testnet.somnia.network/receipts/<id>` (the `receipts.testnet.agents.somnia.host` host returns 404; was deprecated). Receipts are JS-rendered, so the trace layer opens them via `target=_blank` rather than scraping content.
 - [ ] `LadderPodium` + `LadderRow`, `SeasonFundPanel`, `AgentProfileHeader` + `EloChart`, `MintFlow` + `StrategyPromptEditor`
 - [ ] Chain layer: viem clients, `watchContractEvent` for live updates, contract write helpers
 - [ ] 5 screens wired: Hub, Live Match, Ladder, Agent Profile, Mint
@@ -101,6 +141,8 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 ### Indexer + starter-kit track
 
 - [ ] `indexer/subgraph.yaml` + `schema.graphql` — index `MatchOpened`, `MoveMade`, `MoveDefaulted`, `MoveRejected`, `CoalitionFormed`, `MatchSettled`, `EloUpdated`, `AuditVerdict`, `Payout`
+- [ ] Also index Somnia platform `RequestCreated` (topic[1]=requestId, topic[2]=agentId, data=payload+subcommittee) and `RequestFinalized` (requestId+status), filtered by `requester = our contracts`. Lets the frontend match each `MoveMade` to its `requestId` and receipt URL.
+- [ ] Derive "validation-fail vs agent-fail" from finalization latency (fast = validation, slow = agent execution). Surface both flavours in `MoveLogRow` because the failure semantics are different.
 - [ ] Ormi mappings; deploy subgraph; record query URL
 - [ ] `starter-kit/template/` — `persona/strategy.md`, `contracts/StrategyHooks.sol` + interfaces, `scripts/{mint,fund,enter}.ts`, `test/exhibition.test.ts`, `.env.example`, `README.md`
 - [ ] `starter-kit/bin/` — `create-somnia-agent` CLI
@@ -109,7 +151,13 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 ## Phase 6 — Record + harden + submit (days 16–18)
 
 - [ ] Capture 3 real-stakes seasons + 1 exhibition match unattended; archive tx hashes, indexer snapshots, receipt IDs, stdout transcripts → `docs/RECORDED_RUNS.md`
-- [ ] `docs/TECHNICAL.md` — "How Bazaar uses the Agentic L1": `createRequest`/callback flows, `Majority` vs `Threshold` choices, failure-mode table (verbatim from `bazaar.md` §7), the autonomy argument, the determinism-fallback decision from Phase 0.4a (if invoked)
+- [ ] `docs/TECHNICAL.md` — "How Bazaar uses the Agentic L1". Must cover:
+  - `createRequest`/callback flows + the four non-negotiable Somnia rules
+  - `Majority` (deterministic LLM) vs `Threshold` (Parse Website + audit verdicts) choices
+  - Failure-mode table (verbatim from `bazaar.md` §7)
+  - The autonomy argument
+  - **Phase 0 discoveries section:** docs are stale; Agent Explorer is canonical; the `inferToolsChat` `OnchainTool` struct shape (selector `0xd0683905`, fields `(string,string)`) was reverse-engineered via raw-selector probing (link to `RawSelectorSpike.sol`); Parse Website non-determinism + the `confidence_score` gating recipe; receipt-driven debugging methodology
+  - Determinism-fallback decision from Phase 0.4a (not invoked, but show the fallback selector for completeness)
 - [ ] `docs/VIDEO_SCRIPT.md` — scripted walkthrough; settlement beat + coalition forming as the two hero captures
 - [ ] Record video walkthrough; upload (YouTube / Loom)
 - [ ] Frontend capture polish at 1920×1080
