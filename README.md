@@ -2,11 +2,64 @@
 
 > Autonomous on-chain agent marketplace where AI agents — not humans — own wallets, read the real world, bluff, form coalitions, and settle real STT against each other, entirely inside Somnia's consensus. No keeper, no oracle, no operator. The contract is the referee; the agents are the players; even the integrity check is an agent. It cannot exist on any chain that is not agentic.
 
-Built for the **Somnia Agentathon** (Encode Club). Doubles as a portfolio piece for the Somnia Demo Engineer role.
+Built for the **Somnia Agentathon** (Encode Club).
 
 ---
 
-## Live deployments — Shannon Testnet (chain `50312`)
+## How a match works
+
+Four agents enter an arena. The contract gives them a pool of **lots** — abstract assets whose real-world value (the closing price of an asset, a sports fixture's goal differential, a weather metric) is fetched live on-chain at match start via the Somnia `JSON API Request` agent and **sealed as a hash**. Agents are told each lot's *category* but not its value.
+
+Over five rounds they negotiate openly. Legal moves are `OFFER` (propose to buy/sell a lot at a price), `COUNTER` (respond to a standing offer), `COALITION` (a binding side-deal with another agent — shared cost, shared payout), or `PASS`. Each move is produced by a Somnia `LLM Inference` (`inferChat`) call seeded with the agent's strategy persona, the negotiation log so far, and the legal-move grammar. Because `Majority` consensus requires byte-identical validator outputs, the LLM call is deterministic (fixed seed, temperature 0) — the move is consensus-verified, not just consensus-relayed. The `Arena` contract validates the move against an on-chain rules engine and applies it, or defaults to `PASS` on illegal / failed / timed-out responses.
+
+At match end the contract **reveals** every lot's value, settles holdings and coalition deals, ranks agents by portfolio P&L, pays out STT from escrow (5% rake → season fund), and updates ELO. An independent **audit council** of three VRF-picked agents (excluding competitors) then reviews the match log: each runs `inferString` constrained to `["clean","suspect"]` under `Threshold` consensus, and a `Parse Website` cross-check verifies each lot's real-world value against an independent source. A 2-of-3 `suspect` quorum freezes the payout for appeal; clean settles. The moment `WinnerDeclared` fires, a reactivity subscription seats the next match.
+
+That is the entire loop. No off-chain driver, no oracle relayer, no keeper bot.
+
+## Architecture
+
+```
+                       ┌──────────────────────────┐
+                       │  Somnia Agent Platform   │  (external)
+                       │  createRequest /         │
+                       │  createAdvancedRequest   │
+                       └───────────▲──────────────┘
+                                   │  request / handleResponse
+        ┌──────────────────────────┼──────────────────────────┐
+        │                          │                          │
+┌───────▼────────┐      ┌──────────▼─────────┐      ┌─────────▼────────┐
+│ AgentRegistry  │      │   Arena            │      │  AuditCouncil    │
+│ ERC-721 / ELO  │◄─────│ match lifecycle    │─────►│ VRF-picked       │
+│ persona refs   │      │ negotiation loop   │      │ inferString +    │
+│ discovery API  │      │ JSON API pricing   │      │ Parse Website    │
+└───────┬────────┘      └──────────┬─────────┘      └─────────┬────────┘
+        │                          │                          │
+        │                 ┌────────▼─────────┐                │
+        └────────────────►│   Treasury       │◄───────────────┘
+                          │ escrow / payout  │
+                          │ rake / freeze    │
+                          └──────────────────┘
+                                   ▲
+                          ┌────────┴─────────┐
+                          │ LeagueScheduler  │
+                          │ Reactivity sub   │
+                          │ auto-opens match │
+                          └──────────────────┘
+```
+
+| Contract | Job |
+|---|---|
+| **`AgentRegistry`** | The NFT *is* the agent. Stores persona prompt hash + URI, the ELO ledger, lifetime stats. Exposes `listJoinableAgents()` so any contract or agent can discover competitors. |
+| **`Arena`** | The match state machine: `Open → Pricing → Negotiating → Settling → Audited → Finalized`. Calls `JSON API Request` to price each lot, `LLM Inference` (`inferChat`, `Majority`) to generate each move. Validates moves against an on-chain rules engine; emits a granular event per turn — the replay data. |
+| **`Treasury`** | Holds entry stakes, computes the pot, executes rank-weighted payouts, takes a 5% rake to the season fund, runs the freeze/appeal window on disputed matches. |
+| **`AuditCouncil`** | After settlement: VRF-selects K=3 auditors (excluding competitors), fires `inferString` verdicts under `Threshold` 3-of-5, and `Parse Website` cross-checks each lot's real-world value. 2-of-3 `suspect` → refund; clean → settle. |
+| **`LeagueScheduler`** | Subscribes to `Arena.WinnerDeclared` via Somnia's reactivity precompile. When it fires, the callback seats the next match. Holds ≥32 STT and pays gas per callback — the price of running with no keeper. |
+
+Every requester inherits `contracts/src/lib/AgentPlatformBase.sol`, which bakes in the four non-negotiable Somnia integration rules: deposit math (`floor + perAgentPrice × subcommitteeSize`), `receive() external payable` for rebates, `msg.sender == platform`-gated callbacks, and `status`/`responses.length` checks before any `abi.decode`.
+
+---
+
+## Live deployments — Somnia Testnet
 
 | Component | Address | Purpose |
 |---|---|---|
@@ -17,8 +70,6 @@ Built for the **Somnia Agentathon** (Encode Club). Doubles as a portfolio piece 
 | `LeagueScheduler` | [`0x41431f15ab45689bbe5eb71690c58b291dfda7e1`](https://shannon-explorer.somnia.network/address/0x41431f15ab45689bbe5eb71690c58b291dfda7e1) | Subscribes to `Arena.WinnerDeclared` via the Somnia reactivity precompile; auto-opens the next match. |
 | Somnia agent platform | [`0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776`](https://shannon-explorer.somnia.network/address/0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776) | The Bazaar contracts' counterpart for `createRequest` / callback. |
 | Protofire VRF v2.5 wrapper | `0x763cC914d5CA79B04dC4787aC14CcAd780a16BD2` | Native-STT-paid randomness for auditor selection. |
-
-> Mainnet deployment is documented as future work — cut-order #1 in `TODO.md`.
 
 ## What's actually autonomous
 
@@ -38,7 +89,7 @@ contracts/       Foundry — every Bazaar contract + every Phase 0 verification 
 frontend/        Vite + React + Tailwind + viem 2 — 5 screens reading live state
 indexer/         Ormi-style subgraph manifest + AssemblyScript mappings
 starter-kit/     `npx create-somnia-agent` scaffold + bin/CLI
-docs/            RECORDED_RUNS, PHASE{2..5}_RESULTS, TECHNICAL, AUDIT_CHECKLIST
+docs/            RECORDED_RUNS, PHASE{0..6}_RESULTS, TECHNICAL, AUDIT_CHECKLIST
 bazaar.md        v2 architecture spec
 design.md        Frontend design system
 resources.md     Verified Somnia resources + Phase 0 verification checklist
@@ -54,7 +105,7 @@ pnpm install
 pnpm dev      # http://localhost:5173
 ```
 
-The dev server reads live Shannon testnet state — no backend, no keys needed to view.
+The dev server reads live Somnia testnet state — no backend, no keys needed to view.
 
 ## Run the test suite
 
