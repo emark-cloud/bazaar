@@ -41,6 +41,38 @@ Check items off as they ship. A phase is done only when its **demo artifact** ru
 - Largest `inferChat` payload that still deterministic? (above)
 - For Parse Website search-mode (`resolveUrl=true`): the prompt is used verbatim as the search query, so it must be a search-friendly keyword string, not a question. Bazaar doesn't use search mode, but worth knowing.
 
+## Phase 1 learnings to carry forward — read before starting Phase 2+
+
+**Architecture-critical:**
+- **Balance-based deposit gating** is now in `AgentPlatformBase._send`/`_sendAdvanced` — they draw from `address(this).balance`, not `msg.value`. This is mandatory because the platform's callback into our contract has `msg.value=0`, but our contracts often need to fire follow-on requests from inside callbacks. Every Bazaar requester (Treasury, AuditCouncil, LeagueScheduler) inherits this automatically. **Implication for external callers:** they must `payable`-fund the contract with the full expected match/audit/scheduler-tick cost up front. Half-funded calls revert with `Underfunded(balance, required)`.
+- **Settlement scoring has a unit mismatch in Phase 1** (Exhibition only, so harmless): lot value is feed-scaled (e.g. 209,331 = $2,093.31 with decimals=2), paid price is plain STT-int (e.g. 25). The current profit math subtracts them directly. **Phase 2 BLOCKER:** before Treasury introduces real STT transfers, normalize so both sides are in the same denomination — either scale paid price by feed decimals, or store a `lotValueScale` per match that converts cents → STT-equivalent. Otherwise real-stakes settlement will pay out wildly incorrect amounts.
+- **Negotiation log not yet in prompt.** `Arena._buildPrompt` currently sends only `(budget + lot list)` as the user message. With no history of prior moves, all 4 agents bid their full budget on the same lot. Phase 2 must extend the prompt to include the full in-match move log, then **re-validate `inferChat` byte-identicality at the new payload size** (current 2.6 KB confirmed deterministic; full-match log probably pushes to 5–10 KB). Add the log progressively (round by round) and revalidate as it grows.
+- **MatchKind.RealStakes is reserved but unwired.** `Arena.openExhibition` is the only entry point today. Phase 2 needs `openRealStakes(...)` that calls `Treasury.escrow(...)` for each agent's stake before the match opens. Stake collection comes from the agent NFT's **owner address** (not the NFT itself); operators-with-allowance pattern via `ERC20`-style approvals on STT, or pull from the agent owner's wallet via a signed permit (Phase 2 design decision).
+- **Per-turn latency ~9 blocks (~9–10s).** Frontend (Phase 5) motion budget for the "thinking" state should be ≥10s. A full 4×5 match wall-clock ≈ 3.5 minutes. Real-stakes recorded seasons (3 matches) ≈ 12 minutes each, ~36 minutes total — plan recording sessions accordingly.
+
+**Phase 2 prompt iteration (avoid burning STT on the same LLM mistakes):**
+- Explicitly say *"integer only, no units, no commas, no underscores."* — Diplomat returned `price=10_STT` and was rejected. Cheaper to prevent than to handle as a default.
+- Include 2–3 concrete OK / NOT-OK move examples in the system prompt.
+- When the negotiation log lands, render it compactly (e.g. `R1.T0 Hawk OFFER lot=1 BUY 25`) to keep token count down.
+
+**Phase 5 indexer notes from observed events:**
+- Index `MoveRejected` and `MoveDefaulted` as separate event types — they have different semantics (rejected = LLM produced illegal move; defaulted = LLM call failed/timed out). Frontend's `MoveLogRow` uses both with different visual states.
+- `MatchSettled(uint256 matchId indexed, uint256[] agentIds, int256[] scores, uint256 winnerAgentId)` — the dynamic-array decoding is non-trivial. Either add a separate `WinnerDeclared(matchId indexed, winnerAgentId indexed)` event for cheap indexing, or write a careful decoder. Frontend wants quick winner lookup.
+- `scores` is `int256[]` — can be negative on forfeit. Indexer schema must use signed types; UI shows ±.
+- Latency-based heuristic to surface in the UI: validation-fail completes in ~4 blocks, agent-fail takes 30–120s. Phase 0 noted this; Phase 1 confirmed: each successful `inferChat` move took ~9 blocks. So **anything finalizing in <5 blocks = validation failure; show as "request invalid" not "agent failed"**.
+
+**Cost model validated:**
+- Spec §6 estimated 9.5–11 STT per 4×5 match. Phase 1 Match #1 (4×2, 2 lots) burned ~2.5 STT — scaling to 4×5 × 4 lots gives ~10 STT, matches spec. Hold the model.
+- Per-call effective cost ~0.3 STT (rebates return ~30% of deposit ceiling).
+- For Phase 6 recorded seasons (3 real-stakes 4×5 matches + 1 exhibition): plan ~40 STT for agent platform fees alone, plus stake escrow (4 × 25 STT × 3 = 300 STT in stakes, recycled via payouts).
+
+**Untested code path:** `Arena._advanceTurn` has a branch that calls `_toSettling` when all agents have forfeited. The current test suite doesn't cover this. Phase 2: add a test that forfeits all 4 agents in a 4-round match.
+
+**Deferred from Phase 1 (won't block Phase 2 but accumulate as debt):**
+- SELL-side moves: rules engine parses them, Arena rejects them. Decision needed: keep BUY-only auctions for narrative clarity, or implement SELL (more complex, more interesting). Recommend BUY-only through Phase 6; revisit post-submission.
+- Coalition share parameter: parsed but settlement hard-codes 50/50. Phase 2 can wire share-aware payout if budget allows.
+- Strategy hooks contract: AgentRegistry has no hooks pointer. Phase 5 starter-kit needs this (let advanced users add deterministic guardrails). Add `address strategyHooks` to the `Agent` struct in Phase 5, not earlier.
+
 ## Phase 0 — verification spikes (days 1–2, blocking)
 
 Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and on-chain tx links inline.
