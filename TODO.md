@@ -138,8 +138,8 @@ The negotiation log + per-lot `valueHint` + integer-only rules + format examples
 - Ormi `network:` slug confirmation before subgraph deploy.
 - Strategy-prompt pinning (Pinata/Web3.Storage) — placeholder URI shipped.
 - WalletConnect on the Mint screen — placeholder + cast snippet shipped.
-- Per-screen polish for 1920×1080 capture and the settlement-beat motion sequence (currently a single `slide-up-in` per move; the lot-reveal flip animation is documented but not yet implemented).
-- `prefers-reduced-motion` query — keyframes still play; need to wrap animations in a media-query gate.
+- Per-screen polish for 1920×1080 capture and the settlement-beat motion sequence (single `slide-up-in` per move). **Lot-reveal flip animation now SHIPPED** — `LotCard` uses `animate-lot-flip` + staggered `animationDelay` (per design.md §4 "lots reveal in sequence"), a bigint count-up (`useCountUp` in `src/lib/motion.ts`), and a fading-in source label.
+- ~~`prefers-reduced-motion` query~~ **DONE** — global CSS gate in `index.css` collapses CSS animation/transition durations to instant; JS count-up gated via `usePrefersReducedMotion()`. Data stays correct; only motion drops (design.md §4).
 
 ## Phase 4 learnings to carry forward — read before starting Phase 5+
 
@@ -317,7 +317,7 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 - [x] Coalition state propagated to sigil; active turn renders amber ring; lot reveal flips from sealed glyph to value with color
 - [x] Build verified — production bundle 470 KB / 145 KB gzipped; dev server boots on `localhost:5173`
 - [ ] Deploy hosted frontend (Vercel / Netlify); record public URL — **Phase 6 deploy step**
-- [ ] WalletConnect/MetaMask flow on Mint screen — placeholder + cast snippet shipped, real signing deferred to Phase 6 polish
+- [x] WalletConnect/MetaMask flow on Mint screen — injected EIP-1193 (MetaMask) connect + `mint` signing wired in `frontend/src/chain/wallet.ts` + `Mint.tsx` (auto chain-add for Shannon, tx status + explorer link, no new deps). CLI snippet retained as fallback.
 
 ### Indexer + starter-kit track
 

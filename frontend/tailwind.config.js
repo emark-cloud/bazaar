@@ -72,6 +72,16 @@ export default {
           "0%, 100%": { opacity: "0.4" },
           "50%":      { opacity: "1" },
         },
+        // settlement lot reveal: sealed glyph flips on the X axis to its value
+        "lot-flip": {
+          "0%":   { transform: "rotateX(90deg)", opacity: "0" },
+          "55%":  { transform: "rotateX(-12deg)", opacity: "1" },
+          "100%": { transform: "rotateX(0deg)", opacity: "1" },
+        },
+        "fade-in": {
+          "0%":   { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         "sigil-pulse":    "sigil-pulse 3s ease-in-out infinite",
@@ -80,6 +90,8 @@ export default {
         "slide-up-in":    "slide-up-in 280ms ease-out 1",
         "flash-once":     "flash-once 250ms ease-out 1",
         "live-dot":       "live-dot 1.5s ease-in-out infinite",
+        "lot-flip":       "lot-flip 400ms ease-out 1 both",
+        "fade-in":        "fade-in 500ms ease-out 1 both",
       },
     },
   },
