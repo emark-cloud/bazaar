@@ -118,6 +118,7 @@ The negotiation log + per-lot `valueHint` + integer-only rules + format examples
 - **Snapshot poll cadence:** 6 s for match state, 8 s for event log, 15 s for the top-bar status strip, 20 s for the ladder. WebSocket / `watchContractEvent` was deferred — polling is sufficient at the demo cadence and avoids the long-lived-subscription failure modes Shannon's WS endpoint sometimes shows.
 - **`viem.getContractEvents` is range-limited to 1000 blocks on Shannon.** `fetchMatchEvents` pages in 950-block chunks; `findLatestMatchId` walks backwards in 950-block windows. Don't try to scan the whole chain — pick a reasonable lookback.
 - **Sigils as inline SVG** rather than `<img>` tags so animation classes drive the geometry directly. Each persona's mark is built from minimal primitives (diamond/circle/stripes/cut) to read as one family. User-minted agents get a generic diamond + a deterministic color from `generatedColorFor(name)`.
+- **Somnia meters gas ~18× a standard EVM, and browser wallets under-estimate it.** A live `AgentRegistry.mint` costs **~3.03M gas** on-chain but only ~170k under `cast run`/local replay — so `cast run` showing a tx "succeeding" is misleading; always check the real receipt `status` (`cast receipt`). MetaMask sent the first mint with a 2M limit and it ran out of gas (`status 0`, `gasUsed == gasLimit`, empty logs). **Any browser-signed write must estimate via our own `publicClient.estimateContractGas` (+30% headroom) and pass an explicit `gas`** — never trust the injected wallet's estimate. Wired in `Mint.tsx`; `cast send` estimates correctly so CLI paths were never affected.
 
 **Trace layer (`TraceWaterfall`):**
 - The receipt service is fully client-rendered, so we open it in a new tab rather than embedding. Correct base: `https://agents.testnet.somnia.network/receipts/<requestId>`. Phase 0 finding still stands.
@@ -317,7 +318,8 @@ Each spike lives in `contracts/script/phase0/`. Capture stdout transcripts and o
 - [x] Coalition state propagated to sigil; active turn renders amber ring; lot reveal flips from sealed glyph to value with color
 - [x] Build verified — production bundle 470 KB / 145 KB gzipped; dev server boots on `localhost:5173`
 - [ ] Deploy hosted frontend (Vercel / Netlify); record public URL — **Phase 6 deploy step**
-- [x] WalletConnect/MetaMask flow on Mint screen — injected EIP-1193 (MetaMask) connect + `mint` signing wired in `frontend/src/chain/wallet.ts` + `Mint.tsx` (auto chain-add for Shannon, tx status + explorer link, no new deps). CLI snippet retained as fallback.
+- [x] WalletConnect/MetaMask flow on Mint screen — injected EIP-1193 (MetaMask) connect + `mint` signing wired in `frontend/src/chain/wallet.ts` + `Mint.tsx` (auto chain-add for Shannon, tx status + explorer link, no new deps). CLI snippet retained as fallback. **Verified live on testnet — agent #14 minted through the browser.** Shipped on `main` (PR #1).
+- [x] `prefers-reduced-motion` gate + staggered lot-reveal flip — global CSS collapse in `index.css` + `usePrefersReducedMotion`/`useCountUp` in `frontend/src/lib/motion.ts`; `LotCard` flips sealed→value with per-index stagger, bigint count-up, fading source label (design.md §4). Shipped on `main` (PR #1).
 
 ### Indexer + starter-kit track
 
