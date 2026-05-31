@@ -10,6 +10,21 @@
   }
   /* monospace defaults to tabular figures so STT / requestIds / scores align */
   .font-mono { font-variant-numeric: tabular-nums; }
+
+  /*
+   * design.md §4: collapse to instant state changes under prefers-reduced-motion.
+   * The data stays correct (animations are purely cosmetic); only the motion drops.
+   * JS-driven motion (the lot-reveal count-up) is gated separately via
+   * usePrefersReducedMotion() in src/lib/motion.ts.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
