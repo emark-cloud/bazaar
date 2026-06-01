@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchAllAgents, fetchAllLots, fetchMatch, fetchAuditState } from "../chain/reads";
-import { findLatestMatchId, fetchMatchEvents, eventsToMoves } from "../chain/events";
+import { findLatestMatchId, findMatchOpenBlock, fetchMatchEvents, eventsToMoves } from "../chain/events";
 import type { Agent, MoveEntry } from "../chain/types";
 import { AgentPanel } from "../components/AgentPanel";
 import { NegotiationStream } from "../components/NegotiationStream";
@@ -85,20 +85,40 @@ export default function LiveMatch() {
     return () => { cancel = true; clearInterval(id); };
   }, [matchId]);
 
-  // load + poll move log
+  // Resolve the block this match opened on, once per match — lets the move-log
+  // scan start at the match's true beginning instead of a fixed lookback window
+  // (which misses older, already-finalized matches). null → fall back to default.
+  const [openBlock, setOpenBlock] = useState<bigint | null>(null);
+  useEffect(() => {
+    if (!matchId) { setOpenBlock(null); return; }
+    let cancel = false;
+    setOpenBlock(null);
+    (async () => {
+      try {
+        const b = await findMatchOpenBlock(matchId);
+        if (!cancel) setOpenBlock(b);
+      } catch { /* leave null → fetchMatchEvents uses its default window */ }
+    })();
+    return () => { cancel = true; };
+  }, [matchId]);
+
+  // load + poll move log (re-runs when the open block resolves, and stops once
+  // the match is finalized — the log is then immutable)
   useEffect(() => {
     if (!matchId) return;
     let cancel = false;
     async function tick() {
       try {
-        const evs = await fetchMatchEvents(matchId!);
+        const evs = await fetchMatchEvents(matchId!, openBlock ?? undefined);
         if (!cancel) setMoves(eventsToMoves(evs));
       } catch (e) { console.warn("events fetch failed", e); }
     }
     tick();
+    const finalized = (snapshot?.phase ?? 0) >= 4;
+    if (finalized) return () => { cancel = true; };
     const id = setInterval(tick, 8000);
     return () => { cancel = true; clearInterval(id); };
-  }, [matchId]);
+  }, [matchId, openBlock, snapshot?.phase]);
 
   const agentById = useMemo(() => {
     const map = new Map<string, Agent>();

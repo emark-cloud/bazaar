@@ -4,6 +4,7 @@ import { fetchMatch, fetchAllLots, fetchAllAgents } from "../chain/reads";
 import { fetchMatchEvents, eventsToMoves } from "../chain/events";
 import { SigilTile } from "./SigilTile";
 import { personaColorOf } from "../sigils/personas";
+import { formatBudget } from "../lib/format";
 
 interface PreviewState {
   agentIds: readonly bigint[];
@@ -104,7 +105,7 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="font-display text-[13px] truncate">{name}</span>
                 <span className="font-mono text-xs text-text-primary">
-                  {state.budgets[idx]?.toString() ?? "—"}
+                  {formatBudget(state.budgets[idx])}
                   <span className="text-text-dim"> STT</span>
                 </span>
               </div>
