@@ -65,3 +65,30 @@ export function useCountUp(target: bigint, active: boolean, durationMs = 650): b
 
   return value;
 }
+
+/**
+ * Number variant of {@link useCountUp} for already-small integers (scores, P&L).
+ * Counts 0 → target on mount / when target changes (easeOutCubic). Negative
+ * targets count down through zero naturally. Instant under reduced motion.
+ */
+export function useCountUpNumber(target: number, durationMs = 700): number {
+  const reduced = usePrefersReducedMotion();
+  const [value, setValue] = useState<number>(reduced ? target : 0);
+  const raf = useRef<number>();
+
+  useEffect(() => {
+    if (reduced) { setValue(target); return; }
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setValue(Math.round(target * eased));
+      if (t < 1) raf.current = requestAnimationFrame(step);
+      else setValue(target);
+    };
+    raf.current = requestAnimationFrame(step);
+    return () => { if (raf.current) cancelAnimationFrame(raf.current); };
+  }, [target, reduced, durationMs]);
+
+  return value;
+}

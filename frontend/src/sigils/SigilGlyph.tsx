@@ -1,54 +1,55 @@
 import type { Persona } from "./personas";
 
 /**
- * Inline SVG geometric sigils — one mark per persona, drawn from minimal primitives.
- * Returns the inner path/shape only (no <svg> wrapper), so SigilTile owns the viewBox + animation.
+ * Inline SVG geometric sigils — one mark per persona, drawn from minimal
+ * primitives. Geometry is the canonical brand-kit set (bazaar-brand-kit/sigils),
+ * authored in a 0 0 40 40 box. Returns the inner shapes only (no <svg> wrapper),
+ * so SigilTile owns the viewBox (40) + color field + animation. `ink` is the
+ * on-color foreground (#16181C in the brand kit).
  */
-export function SigilGlyph({ persona, stroke = "#0B0C0E" }: { persona: Persona; stroke?: string }) {
+export function SigilGlyph({ persona, ink = "#16181C" }: { persona: Persona; ink?: string }) {
   switch (persona) {
     case "hawk":
-      // Descending diamond + angular stripes — predatory.
+      // Filled descending diamond + two angular stripes — predatory.
       return (
-        <g stroke={stroke} strokeWidth="2.5" strokeLinejoin="miter" fill={stroke}>
-          <polygon points="32,12 50,32 32,52 14,32" />
-          <line x1="22" y1="38" x2="42" y2="38" stroke={stroke} strokeWidth="2.5" />
-          <line x1="26" y1="44" x2="38" y2="44" stroke={stroke} strokeWidth="2.5" />
+        <g fill={ink}>
+          <path d="M20 8 L30 18 L20 28 L10 18 Z" />
+          <rect x="12" y="30" width="16" height="2.2" />
+          <rect x="15" y="33.5" width="10" height="2.2" />
         </g>
       );
     case "diplomat":
       // Two interlocking circles — coalition.
       return (
-        <g fill="none" stroke={stroke} strokeWidth="3">
-          <circle cx="25" cy="32" r="14" />
-          <circle cx="39" cy="32" r="14" />
+        <g fill="none" stroke={ink} strokeWidth="3">
+          <circle cx="15.5" cy="20" r="8.5" />
+          <circle cx="24.5" cy="20" r="8.5" />
         </g>
       );
     case "quant":
-      // Striped bar-cluster — measurement.
+      // Three measured bars — measurement.
       return (
-        <g fill={stroke}>
-          <rect x="14" y="16" width="36" height="4" />
-          <rect x="14" y="24" width="36" height="4" />
-          <rect x="14" y="32" width="36" height="4" />
-          <rect x="14" y="40" width="36" height="4" />
-          <rect x="14" y="48" width="36" height="4" />
+        <g fill={ink}>
+          <rect x="9" y="12" width="22" height="3" rx="1" />
+          <rect x="9" y="18.5" width="22" height="3" rx="1" />
+          <rect x="9" y="25" width="22" height="3" rx="1" />
         </g>
       );
     case "contrarian":
-      // Circle split with counter-cut — the fade.
+      // Circle with one half filled — the fade.
       return (
-        <g fill="none" stroke={stroke} strokeWidth="3">
-          <circle cx="32" cy="32" r="18" />
-          <line x1="14" y1="46" x2="50" y2="18" />
-        </g>
+        <>
+          <circle cx="20" cy="20" r="12" fill="none" stroke={ink} strokeWidth="2.6" />
+          <path d="M20 8 a12 12 0 0 1 0 24 Z" fill={ink} />
+        </>
       );
     case "generic":
     default:
-      // Amber diamond outline — user-minted default.
+      // Diamond outline + center node — user-minted default (child of the mark).
       return (
-        <g fill="none" stroke={stroke} strokeWidth="3">
-          <polygon points="32,14 50,32 32,50 14,32" />
-          <circle cx="32" cy="32" r="4" fill={stroke} />
+        <g fill="none" stroke={ink} strokeWidth="2.6">
+          <polygon points="20,8 32,20 20,32 8,20" />
+          <circle cx="20" cy="20" r="2.6" fill={ink} />
         </g>
       );
   }

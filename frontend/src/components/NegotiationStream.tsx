@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Agent, MoveEntry } from "../chain/types";
 import { TraceWaterfall } from "./TraceWaterfall";
-import { PERSONA_COLOR, generatedColorFor, nameToPersona } from "../sigils/personas";
+import { personaColorOf } from "../sigils/personas";
 
 type View = "transcript" | "orderbook";
 
@@ -14,6 +14,14 @@ export function NegotiationStream({
 }) {
   const [view, setView] = useState<View>("transcript");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  // Feed scrolls to the latest row as moves land — terminal rhythm. Never
+  // scrollIntoView (it would yank the whole page); set scrollTop directly.
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [moves.length, view]);
 
   function toggleExpand(i: number) {
     setExpanded((prev) => {
@@ -39,7 +47,7 @@ export function NegotiationStream({
           >order book</button>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+      <div ref={bodyRef} className="flex-1 overflow-y-auto p-3 space-y-1.5">
         {moves.length === 0 && (
           <div className="text-center text-text-dim py-8 label-sm">
             waiting for the first move to land…
@@ -52,6 +60,7 @@ export function NegotiationStream({
             agent={agentById.get(m.agentId.toString())}
             expanded={expanded.has(i)}
             onClick={() => toggleExpand(i)}
+            isLatest={i === moves.length - 1}
           />
         ))}
         {view === "orderbook" && (
@@ -86,11 +95,10 @@ export function NegotiationStream({
 }
 
 function TranscriptLine({
-  move, agent, expanded, onClick,
-}: { move: MoveEntry; agent?: Agent; expanded: boolean; onClick: () => void }) {
+  move, agent, expanded, onClick, isLatest,
+}: { move: MoveEntry; agent?: Agent; expanded: boolean; onClick: () => void; isLatest?: boolean }) {
   const name = agent?.name ?? `Agent #${move.agentId}`;
-  const persona = agent ? nameToPersona(agent.name) : "generic";
-  const color = persona === "generic" ? generatedColorFor(name) : PERSONA_COLOR[persona];
+  const color = personaColorOf(name);
   const parts = parseMove(move.raw);
 
   let phrase = move.raw;
@@ -101,31 +109,43 @@ function TranscriptLine({
   if (move.kind === "REJECTED")  phrase = `move rejected — ${move.reason ?? "reason"}`;
   if (move.kind === "DEFAULTED") phrase = `defaulted — ${move.reason ?? "request failed"}`;
 
-  const tag = move.kind;
   const isFail = move.kind === "REJECTED" || move.kind === "DEFAULTED";
+
+  // The newest row lands with a persona-tinted highlight (~9% of --p) + a glow
+  // on its rule. `${color}17` is hex-alpha ≈ 9%.
+  const rowStyle = isLatest ? { backgroundColor: `${color}17` } : undefined;
+  const ruleStyle = isLatest
+    ? { backgroundColor: color, boxShadow: `0 0 10px -1px ${color}` }
+    : { backgroundColor: color };
 
   return (
     <div className="animate-slide-up-in">
       <div
         onClick={onClick}
-        className="flex items-start gap-3 px-2 py-1.5 rounded-sm hover:bg-bg-panel-raised cursor-pointer"
+        className="flex items-start gap-3 px-2 py-1.5 rounded-sm hover:bg-bg-panel-raised cursor-pointer transition-colors"
+        style={rowStyle}
       >
-        <span className="font-mono text-text-dim w-12 shrink-0">r{move.round}·t{move.turnIdx}</span>
-        <span
-          className="inline-block w-1 self-stretch rounded-sm"
-          style={{ backgroundColor: color }}
-          aria-hidden
-        />
+        <span className="font-mono text-text-dim w-12 shrink-0 pt-0.5 text-[11px]">r{move.round}·t{move.turnIdx}</span>
+        <span className="inline-block w-[3px] self-stretch rounded-sm shrink-0" style={ruleStyle} aria-hidden />
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2">
-            <span className="font-display" style={{ color }}>{name}</span>
-            <span className={`text-text-secondary text-sm ${isFail ? "text-status-timeout" : ""}`}>{phrase}</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-display truncate" style={{ color }}>{name}</span>
+            <span
+              className={`font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-sm shrink-0 bg-bg-base border ${
+                isFail
+                  ? "text-status-timeout border-status-timeout/50"
+                  : "text-text-secondary border-border-strong"
+              }`}
+            >
+              {move.kind}
+            </span>
           </div>
-          <div className="label-xs mt-0.5">
-            {tag} {move.requestId !== undefined && <>· req <span className="text-text-secondary">{shortId(move.requestId)}</span></>}
-          </div>
+          <span className={`block text-[13px] ${isFail ? "text-status-timeout" : "text-text-secondary"}`}>{phrase}</span>
+          {move.requestId !== undefined && (
+            <div className="label-xs mt-0.5">req <span className="text-text-secondary">{shortId(move.requestId)}</span> · 3 validators</div>
+          )}
         </div>
-        <span className="label-xs">{expanded ? "▾" : "▸"}</span>
+        <span className="label-xs pt-0.5 shrink-0">{expanded ? "▾" : "▸"}</span>
       </div>
       {expanded && <TraceWaterfall move={move} />}
     </div>

@@ -20,7 +20,7 @@ export function SigilTile({
   const animClass =
     state === "thinking" ? "animate-sigil-thinking"
     : state === "acting" ? "animate-sigil-strike"
-    : state === "victory" ? "animate-sigil-pulse"
+    : state === "victory" ? "animate-sigil-victory"
     : "animate-sigil-pulse";
 
   const ringClass = ring
@@ -37,7 +37,7 @@ export function SigilTile({
       title={name}
     >
       <svg
-        viewBox="0 0 64 64"
+        viewBox="0 0 40 40"
         width={size * 0.78}
         height={size * 0.78}
         className={animClass}
