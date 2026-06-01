@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { Agent } from "../chain/types";
 import { SigilTile, type SigilState } from "./SigilTile";
 import { personaColorOf } from "../sigils/personas";
+import { formatBudget } from "../lib/format";
 import { CountUp } from "./CountUp";
 
 export function AgentPanel({
@@ -65,7 +66,8 @@ export function AgentPanel({
           {!active && hasAgent && <span className="text-text-dim">elo {agent.elo}</span>}
           {budget !== undefined && (
             <span className="text-text-secondary">
-              budget <span className="text-text-primary">{budget.toString()}</span>
+              budget <span className="text-text-primary">{formatBudget(budget)}</span>
+              <span className="text-text-dim"> STT</span>
             </span>
           )}
           {scoreNum !== undefined && (

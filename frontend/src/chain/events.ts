@@ -112,6 +112,46 @@ function classifyMove(raw: string): MoveKind {
   return "OFFER";
 }
 
+/**
+ * Find the block a given match was opened on, by walking MatchOpened events
+ * backwards in 950-block pages. Lets callers scan a *recent/live* match's event
+ * history from its true start instead of a fixed lookback window.
+ *
+ * Deliberately CHEAP and bounded — capped by both a page count and a wall-clock
+ * budget — because Somnia's chain is hundreds of millions of blocks high: a live
+ * match's open block is near head (found in the first pages), while an old
+ * finalized match is millions of blocks back and unreachable by log-scan. On
+ * miss it returns null fast, and callers fall back to the default window.
+ * (Full history for old matches is a subgraph job, not an RPC scan.)
+ */
+export async function findMatchOpenBlock(
+  matchId: bigint,
+  { maxPages = 120, budgetMs = 6000 }: { maxPages?: number; budgetMs?: number } = {},
+): Promise<bigint | null> {
+  const head = await publicClient.getBlockNumber();
+  const started = Date.now();
+  let to = head;
+  for (let page = 0; page < maxPages && to > 0n; page++) {
+    if (Date.now() - started > budgetMs) break;
+    const from = to > 950n ? to - 950n : 0n;
+    try {
+      const logs = await publicClient.getContractEvents({
+        address: CONTRACTS.arena,
+        abi: ARENA_ABI,
+        eventName: "MatchOpened",
+        fromBlock: from,
+        toBlock: to,
+      });
+      for (const log of logs) {
+        if ((log as any).args?.matchId === matchId) return log.blockNumber!;
+      }
+    } catch { /* skip a bad page, keep walking back */ }
+    if (from === 0n) break;
+    to = from - 1n;
+  }
+  return null;
+}
+
 /** Find the most-recently-opened match by walking MatchOpened events backwards. */
 export async function findLatestMatchId(): Promise<bigint | null> {
   const head = await publicClient.getBlockNumber();
