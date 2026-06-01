@@ -6,6 +6,9 @@ import type { Agent, MoveEntry } from "../chain/types";
 import { AgentPanel } from "../components/AgentPanel";
 import { NegotiationStream } from "../components/NegotiationStream";
 import { LotCard } from "../components/LotCard";
+import { SigilTile } from "../components/SigilTile";
+import { CountUp } from "../components/CountUp";
+import { personaColorOf } from "../sigils/personas";
 import { MATCH_PHASE, AUDIT_STATUS } from "../chain/types";
 
 interface MatchSnapshot {
@@ -120,6 +123,20 @@ export default function LiveMatch() {
     return m;
   }, [lots]);
 
+  // Settlement: once Finalized, the winner is the computed top-P&L agent (never
+  // hardcoded). Drives the banner + the victory sigil on the winning panel.
+  const settled = snapshot?.phase === 4;
+  const winner = useMemo(() => {
+    if (!settled) return null;
+    let bestId: string | null = null;
+    let best: bigint | null = null;
+    for (const [id, v] of scoreByAgent) {
+      if (best === null || v > best) { best = v; bestId = id; }
+    }
+    if (bestId === null) return null;
+    return { id: BigInt(bestId), score: best ?? 0n, agent: agentById.get(bestId) };
+  }, [settled, scoreByAgent, agentById]);
+
   if (!matchId) {
     return <div className="p-8 text-text-secondary">scanning for the latest match…</div>;
   }
@@ -129,6 +146,8 @@ export default function LiveMatch() {
 
   const phaseLabel = MATCH_PHASE[snapshot.phase] ?? "Unknown";
   const isLive = snapshot.phase === 1 || snapshot.phase === 2 || snapshot.phase === 3;
+  const auditClean = !audit || audit.verdictsSuspect === 0;
+  const winnerName = winner?.agent?.name ?? (winner ? `Agent #${winner.id}` : "");
 
   return (
     <div className="p-4 flex flex-col h-full gap-3">
@@ -139,9 +158,9 @@ export default function LiveMatch() {
           <span>round <span className="text-text-primary font-mono">{snapshot.currentRound}/{snapshot.rounds}</span></span>
           <span>turn <span className="text-text-primary font-mono">{snapshot.currentTurnIdx + 1}/{snapshot.agentIds.length}</span></span>
           <span>{snapshot.kind === 1 ? "RealStakes" : "Exhibition"}</span>
-          <span className={isLive ? "text-accent" : "text-text-dim"}>
+          <span className={isLive ? "text-accent" : settled ? "text-value-up" : "text-text-dim"}>
             {isLive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot mr-1.5" />}
-            {phaseLabel}
+            {settled ? "✓ Final" : phaseLabel}
           </span>
         </div>
         {audit && audit.status !== 0 && (
@@ -152,6 +171,37 @@ export default function LiveMatch() {
         )}
       </div>
 
+      {/* Settlement banner — the climax beat: winner crowned, payout released */}
+      {settled && winner && (
+        <div
+          className="flex items-center gap-4 px-5 py-3.5 rounded-md animate-settle-in"
+          style={{
+            background:
+              "linear-gradient(90deg, color-mix(in srgb, #F5A623 12%, #1C1F24), #1C1F24 60%)",
+            border: "1px solid #F5A623",
+            boxShadow: "0 0 0 1px rgba(245,166,35,.25), 0 10px 36px -16px rgba(245,166,35,.6)",
+          }}
+        >
+          <SigilTile name={winnerName} size={40} state="victory" ring />
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+            <span className="label-xs">
+              settlement complete · payout released · audit {auditClean ? "clean" : "suspect"}
+            </span>
+            <span className="font-display text-lg">
+              <span style={{ color: personaColorOf(winnerName) }}>{winnerName}</span> takes the pot
+            </span>
+          </div>
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="label-xs">net P&amp;L</span>
+            <CountUp
+              to={Number(winner.score)}
+              prefix={Number(winner.score) > 0 ? "+" : ""}
+              className={`font-mono text-[22px] font-bold ${Number(winner.score) < 0 ? "text-value-down" : "text-value-up"}`}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Four-region grid */}
       <div className="grid grid-cols-[260px_1fr_300px] gap-3 flex-1 min-h-0">
         {/* Left — agents */}
@@ -159,8 +209,11 @@ export default function LiveMatch() {
           {snapshot.agentIds.map((id, idx) => {
             const a = agentById.get(id.toString());
             const active = idx === snapshot.currentTurnIdx && isLive;
+            const isWinner = settled && winner?.id === id;
             const state = active
               ? "thinking"
+              : isWinner
+              ? "victory"
               : moves.some((m) => m.agentId === id && m.kind === "COALITION")
               ? "coalition"
               : "idle";
@@ -170,7 +223,7 @@ export default function LiveMatch() {
                 agent={a ?? { id, name: `Agent #${id}` }}
                 budget={snapshot.budgets[idx]}
                 score={scoreByAgent.get(id.toString())}
-                active={active}
+                active={active || isWinner}
                 state={state}
               />
             );

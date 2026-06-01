@@ -1,5 +1,8 @@
+import type { CSSProperties } from "react";
 import type { Agent } from "../chain/types";
 import { SigilTile, type SigilState } from "./SigilTile";
+import { personaColorOf } from "../sigils/personas";
+import { CountUp } from "./CountUp";
 
 export function AgentPanel({
   agent,
@@ -15,38 +18,64 @@ export function AgentPanel({
   state?: SigilState;
 }) {
   const hasAgent = "elo" in agent;
+  const isWinner = state === "victory";
+  const scoreNum = score === undefined ? undefined : Number(score);
+
+  // The agent's identity color drives the left rule (--p); amber chrome handles
+  // turn/winner emphasis. Persona color is identity only — never a fill.
+  const pColor = personaColorOf(agent.name);
+
+  // Active turn: inset amber 1px ring + soft amber outer glow.
+  // Winner: solid amber ring + breathing winner-glow (own keyframe).
+  const style: CSSProperties = {
+    borderLeft: `2px solid ${pColor}`,
+    ...(active && !isWinner
+      ? { boxShadow: "inset 0 0 0 1px rgba(245,166,35,.55), 0 0 22px -8px #F5A623" }
+      : {}),
+  };
+
   return (
     <div
-      className={`p-3 flex items-center gap-3 transition-colors ${
-        active ? "panel-raised" : "panel"
+      className={`p-3 flex items-center gap-3 transition-[background,border-color,box-shadow] duration-300 relative ${
+        isWinner ? "panel-raised border-accent animate-winner-glow" : active ? "panel-raised" : "panel"
       }`}
+      style={style}
     >
-      <SigilTile name={agent.name} size={44} state={state ?? "idle"} ring={active} />
+      <SigilTile name={agent.name} size={44} state={state ?? "idle"} ring={active || isWinner} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-display truncate">{agent.name}</span>
-          <span className="label-xs">#{agent.id.toString()}</span>
+          {isWinner ? (
+            <span className="text-accent text-[15px] leading-none" title="match winner">♛</span>
+          ) : (
+            <span className="label-xs">#{agent.id.toString()}</span>
+          )}
         </div>
         <div className="flex items-center gap-3 mt-1 text-xs font-mono">
-          {hasAgent && <span className="text-text-dim">elo {agent.elo}</span>}
+          {active && !isWinner && (
+            <span className="text-accent inline-flex items-center">
+              thinking
+              <span className="inline-flex gap-0.5 ml-1" aria-hidden>
+                <i className="w-[3px] h-[3px] rounded-full bg-accent inline-block animate-thinking-dot" />
+                <i className="w-[3px] h-[3px] rounded-full bg-accent inline-block animate-thinking-dot [animation-delay:.18s]" />
+                <i className="w-[3px] h-[3px] rounded-full bg-accent inline-block animate-thinking-dot [animation-delay:.36s]" />
+              </span>
+            </span>
+          )}
+          {!active && hasAgent && <span className="text-text-dim">elo {agent.elo}</span>}
           {budget !== undefined && (
             <span className="text-text-secondary">
               budget <span className="text-text-primary">{budget.toString()}</span>
             </span>
           )}
-          {score !== undefined && (
-            <span
-              className={
-                Number(score) > 0
-                  ? "text-value-up"
-                  : Number(score) < 0
-                  ? "text-value-down"
-                  : "text-text-dim"
-              }
-            >
-              {Number(score) > 0 ? "+" : ""}
-              {score.toString()}
-            </span>
+          {scoreNum !== undefined && (
+            <CountUp
+              to={scoreNum}
+              prefix={scoreNum > 0 ? "+" : ""}
+              className={`font-semibold ${
+                scoreNum > 0 ? "text-value-up" : scoreNum < 0 ? "text-value-down" : "text-text-dim"
+              }`}
+            />
           )}
         </div>
       </div>

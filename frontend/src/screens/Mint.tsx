@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { keccak256, toBytes } from "viem";
-import { SigilTile } from "../components/SigilTile";
-import { PERSONA_LABEL, type Persona } from "../sigils/personas";
+import { SigilTile, type SigilState } from "../components/SigilTile";
+import { PERSONA_LABEL, PERSONA_TRAIT, personaColorOf, type Persona } from "../sigils/personas";
 import { CONTRACTS } from "../chain/config";
 import { AGENT_REGISTRY_ABI } from "../chain/abis";
 import { publicClient } from "../chain/client";
@@ -27,11 +27,36 @@ type MintStatus =
 
 export default function Mint() {
   const [name, setName] = useState("MyAgent");
+  const [nameTouched, setNameTouched] = useState(false);
   const [persona, setPersona] = useState<Persona>("generic");
   const [prompt, setPrompt] = useState(TEMPLATES.generic);
   const [status, setStatus] = useState<MintStatus>({ kind: "idle" });
+  // Bumped on every prompt edit so the preview sigil re-strikes (combined with persona).
+  const [editCount, setEditCount] = useState(0);
+  const [sigilState, setSigilState] = useState<SigilState>("idle");
 
   const wallet = useInjectedWallet();
+
+  // The preview sigil "strikes" the moment the persona changes or the prompt is
+  // edited, then settles back to its idle pulse.
+  useEffect(() => {
+    setSigilState("acting");
+    const t = setTimeout(() => setSigilState("idle"), 420);
+    return () => clearTimeout(t);
+  }, [persona, editCount]);
+
+  // Selecting a persona swaps the template and auto-fills the name — unless the
+  // user has typed their own.
+  function choosePersona(p: Persona) {
+    setPersona(p);
+    setPrompt(TEMPLATES[p]);
+    if (!nameTouched) setName(PERSONA_LABEL[p].replace(/^The /, ""));
+  }
+
+  // Canonical persona label drives the preview sigil/color (resolves via the
+  // nameToPersona "The …" strip); the user's name overrides only the display.
+  const previewName = name.trim() || PERSONA_LABEL[persona];
+  const personaColor = personaColorOf(PERSONA_LABEL[persona]);
 
   const promptHash = (prompt.length > 0
     ? keccak256(toBytes(prompt))
@@ -113,7 +138,7 @@ export default function Mint() {
               type="text"
               value={name}
               maxLength={32}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); setNameTouched(true); }}
               className="mt-1 w-full bg-bg-base border border-border-subtle px-3 py-2 rounded-sm font-mono focus:outline-none focus:border-accent"
             />
           </label>
@@ -121,16 +146,32 @@ export default function Mint() {
           <div>
             <span className="label-sm">starting persona</span>
             <div className="mt-1 grid grid-cols-5 gap-2">
-              {(Object.keys(TEMPLATES) as Persona[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => { setPersona(p); setPrompt(TEMPLATES[p]); }}
-                  className={`panel p-2 text-center hover:border-accent ${persona === p ? "border-accent bg-bg-panel-raised" : ""}`}
-                >
-                  <div className="flex justify-center"><SigilTile name={PERSONA_LABEL[p]} size={36} /></div>
-                  <div className="label-xs mt-1.5">{PERSONA_LABEL[p]}</div>
-                </button>
-              ))}
+              {(Object.keys(TEMPLATES) as Persona[]).map((p) => {
+                const pColor = personaColorOf(PERSONA_LABEL[p]);
+                const selected = persona === p;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => choosePersona(p)}
+                    className="panel p-2 text-center transition-all hover:border-border-strong"
+                    style={{
+                      borderTop: `2px solid ${pColor}`,
+                      ...(selected
+                        ? {
+                            borderColor: pColor,
+                            backgroundColor: "#1C1F24",
+                            boxShadow: `0 0 0 1px ${pColor}, 0 6px 20px -12px ${pColor}`,
+                          }
+                        : {}),
+                    }}
+                  >
+                    <div className="flex justify-center">
+                      <SigilTile name={PERSONA_LABEL[p]} size={36} state={selected ? "thinking" : "idle"} />
+                    </div>
+                    <div className="label-xs mt-1.5">{PERSONA_LABEL[p]}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -139,7 +180,7 @@ export default function Mint() {
             <textarea
               value={prompt}
               rows={6}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => { setPrompt(e.target.value); setEditCount((n) => n + 1); }}
               className="mt-1 w-full bg-bg-base border border-border-subtle px-3 py-2 rounded-sm font-mono text-sm focus:outline-none focus:border-accent"
             />
             <div className="label-xs mt-1">
@@ -215,17 +256,35 @@ export default function Mint() {
         </div>
       </section>
 
-      <aside className="col-span-4 panel p-4">
+      <aside className="col-span-4 panel p-4 self-start">
         <h3 className="font-display text-lg">Preview</h3>
-        <div className="mt-3 flex items-center gap-3 panel-raised p-3">
-          <SigilTile name={name} size={64} />
-          <div>
-            <div className="font-display">{name || "(unnamed)"}</div>
-            <div className="label-sm">{PERSONA_LABEL[persona]}</div>
+        <div
+          className="mt-3 flex items-center gap-3.5 panel-raised p-3.5 relative overflow-hidden"
+          style={{ borderTop: `2px solid ${personaColor}` }}
+        >
+          {/* radial persona glow */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: `radial-gradient(ellipse at 18% 30%, color-mix(in srgb, ${personaColor} 22%, transparent), transparent 62%)` }}
+            aria-hidden
+          />
+          {/* key remounts the tile on persona/prompt change → the sigil "strikes" */}
+          <div className="relative">
+            <SigilTile key={`${persona}·${editCount}`} name={previewName} size={72} state={sigilState} ring />
+          </div>
+          <div className="relative min-w-0">
+            <div className="font-display text-lg truncate">{name || "(unnamed)"}</div>
+            <div className="label-sm" style={{ color: personaColor }}>{PERSONA_LABEL[persona]}</div>
             <div className="label-xs mt-1 text-text-dim">starts at elo 1500</div>
           </div>
         </div>
-        <p className="text-text-secondary text-sm mt-4">
+
+        <div className="mt-3.5 pt-3.5 border-t border-border-subtle">
+          <span className="label-xs">projected play style</span>
+          <p className="text-text-secondary text-[13px] mt-1.5 leading-relaxed">{PERSONA_TRAIT[persona]}</p>
+        </div>
+
+        <p className="text-text-secondary text-sm mt-3.5">
           Newly minted agents are automatically eligible for the next match seated by the
           on-chain LeagueScheduler.
         </p>

@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { fetchSchedulerStats, fetchTreasurySeasonFund, fetchArenaNextMatchId } from "../chain/reads";
 import { formatStt } from "../lib/format";
+import { BazaarMark } from "../sigils/BazaarMark";
 
 function NavItem({ to, label, glyph }: { to: string; label: string; glyph: string }) {
   return (
@@ -47,8 +48,9 @@ export default function AppShell() {
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 h-12 border-b border-border-subtle bg-bg-panel/60 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          <span className="font-display text-lg tracking-tight">
-            <span className="text-accent">▲</span> BAZAAR
+          <span className="flex items-center gap-2 font-display text-lg tracking-tight">
+            <BazaarMark size={22} />
+            Bazaar<span className="text-accent">.</span>
           </span>
           <span className="label-sm">autonomous on-chain agent marketplace</span>
         </div>

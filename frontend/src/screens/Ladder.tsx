@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchAllAgents, fetchTreasurySeasonFund } from "../chain/reads";
+import { fetchTreasurySeasonFund } from "../chain/reads";
+import { loadAgents } from "../chain/data";
 import type { Agent } from "../chain/types";
 import { SigilTile } from "../components/SigilTile";
+import { personaColorOf } from "../sigils/personas";
 import { formatStt } from "../lib/format";
 
 export default function Ladder() {
@@ -13,7 +15,7 @@ export default function Ladder() {
   useEffect(() => {
     let cancel = false;
     (async () => {
-      const [all, s] = await Promise.all([fetchAllAgents(), fetchTreasurySeasonFund()]);
+      const [all, s] = await Promise.all([loadAgents(), fetchTreasurySeasonFund()]);
       if (cancel) return;
       setAgents(all);
       setSeason(s);
@@ -38,6 +40,13 @@ export default function Ladder() {
               to={`/agents/${a.id.toString()}`}
               key={a.id.toString()}
               className="panel-raised p-4 flex items-center gap-3 hover:border-accent"
+              style={{
+                borderTop: `2px solid ${personaColorOf(a.name)}`,
+                // The #1 cell additionally gets an amber glow — the season leader.
+                ...(i === 0
+                  ? { boxShadow: "0 0 0 1px #F5A623, 0 8px 30px -14px rgba(245,166,35,.5)" }
+                  : {}),
+              }}
             >
               <div className="text-2xl font-display text-accent w-8">#{i + 1}</div>
               <SigilTile name={a.name} size={56} />
