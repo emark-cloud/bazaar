@@ -1,0 +1,73 @@
+# Local graph-node stack for verifying the Bazaar subgraph against the Somnia
+# testnet (Shannon, chain 50312) without an Ormi account.
+#
+#   docker compose -f indexer/docker/docker-compose.yml up -d
+#   pnpm --filter bazaar-indexer exec graph create --node http://localhost:8020 bazaar
+#   pnpm --filter bazaar-indexer exec graph deploy --node http://localhost:8020 \
+#         --ipfs http://localhost:5001 --version-label v0.0.1 bazaar build/subgraph.yaml
+#
+# GraphQL then serves at http://localhost:8000/subgraphs/name/bazaar
+# Point the frontend at it: VITE_SUBGRAPH_URL=http://localhost:8000/subgraphs/name/bazaar
+services:
+  graph-node:
+    image: graphprotocol/graph-node:v0.35.1
+    ports:
+      - "8000:8000"   # GraphQL HTTP
+      - "8001:8001"   # GraphQL WS
+      - "8020:8020"   # admin / deploy JSON-RPC
+      - "8030:8030"   # subgraph indexing status
+      - "8040:8040"   # prometheus metrics
+    depends_on:
+      - ipfs
+      - postgres
+    environment:
+      postgres_host: postgres
+      postgres_user: graph-node
+      postgres_pass: let-me-in
+      postgres_db: graph-node
+      ipfs: "ipfs:5001"
+      # network label MUST match `network:` in subgraph.yaml (somnia-testnet)
+      ethereum: "somnia-testnet:https://api.infra.testnet.somnia.network"
+      GRAPH_LOG: info
+      # Shannon caps eth_getLogs at ~1000 blocks per request — keep graph-node under it.
+      GRAPH_ETHEREUM_MAX_BLOCK_RANGE_SIZE: "1000"
+      GRAPH_ETHEREUM_REQUEST_RETRIES: "10"
+      ETHEREUM_POLLING_INTERVAL: "1000"
+    # WSL2's embedded Docker DNS resolves the Somnia RPC host only intermittently,
+    # which stalls the block ingestor. Pin explicit resolvers + a host entry.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    extra_hosts:
+      - "api.infra.testnet.somnia.network:34.8.108.218"
+    restart: unless-stopped
+
+  ipfs:
+    image: ipfs/kubo:v0.29.0
+    ports:
+      - "5001:5001"
+    volumes:
+      - ipfs-data:/data/ipfs
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    command:
+      - "postgres"
+      - "-cshared_preload_libraries=pg_stat_statements"
+      - "-cmax_connections=200"
+    environment:
+      POSTGRES_USER: graph-node
+      POSTGRES_PASSWORD: let-me-in
+      POSTGRES_DB: graph-node
+      # graph-node requires C locale for deterministic ordering
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  ipfs-data:
+  postgres-data:

@@ -3,7 +3,7 @@
 # whether the audit cleared, and which on-chain agent platform request stamped each move.
 
 # An entity per registered agent NFT.
-type Agent @entity {
+type Agent @entity(immutable: false) {
   id: ID!                        # tokenId as decimal string
   tokenId: BigInt!
   owner: Bytes!
@@ -21,7 +21,7 @@ type Agent @entity {
   payoutsReceived:[Payout!]!             @derivedFrom(field: "agent")
 }
 
-type Match @entity {
+type Match @entity(immutable: false) {
   id: ID!                        # matchId as decimal string
   matchId: BigInt!
   kind: Int!                     # 0=Exhibition, 1=RealStakes
@@ -42,7 +42,7 @@ type Match @entity {
   audit:  Audit
 }
 
-type MatchParticipation @entity {
+type MatchParticipation @entity(immutable: false) {
   id: ID!                        # "<matchId>-<agentId>"
   match: Match!
   agent: Agent!
@@ -52,7 +52,7 @@ type MatchParticipation @entity {
   payout: BigInt                 # 0 unless RealStakes settled
 }
 
-type Lot @entity {
+type Lot @entity(immutable: false) {
   id: ID!                        # "<matchId>-<lotIndex>"
   match: Match!
   lotIndex: Int!
@@ -66,7 +66,7 @@ type Lot @entity {
   coalitionPartner: BigInt
 }
 
-type Move @entity {
+type Move @entity(immutable: false) {
   id: ID!                        # "<matchId>-<round>-<turnIdx>"
   match: Match!
   agent: Agent!
@@ -84,7 +84,7 @@ type Move @entity {
 
 # Somnia agent platform request — links each Move to its consensus-verified inference.
 # Latency-derived failure flavour (validation-fail vs agent-fail) is in `failureKind`.
-type PlatformRequest @entity {
+type PlatformRequest @entity(immutable: false) {
   id: ID!                        # requestId as decimal string
   requestId: BigInt!
   agentId: BigInt!               # platform agent id (LLM_INFERENCE etc.), NOT Bazaar agent
@@ -96,7 +96,7 @@ type PlatformRequest @entity {
   failureKind: String            # "validation" if finalizedAt - createdAt < 5 blocks, else "agent"
 }
 
-type Audit @entity {
+type Audit @entity(immutable: false) {
   id: ID!                        # matchId as decimal string
   match: Match!
   status: Int!                   # 0..3 AuditStatus
@@ -113,7 +113,7 @@ type Audit @entity {
   suspect: Boolean
 }
 
-type Payout @entity {
+type Payout @entity(immutable: false) {
   id: ID!                        # "<matchId>-<agentId>"
   match: Match!
   agent: Agent!
@@ -123,14 +123,14 @@ type Payout @entity {
   blockNumber: BigInt!
 }
 
-type SeasonFund @entity {
+type SeasonFund @entity(immutable: false) {
   id: ID!                        # constant "fund"
   balance: BigInt!
   lifetimeIn: BigInt!
   lifetimeOut: BigInt!
 }
 
-type ScheduledMatch @entity {
+type ScheduledMatch @entity(immutable: false) {
   id: ID!                        # matchId
   match: Match!
   scheduledAt: BigInt!
@@ -139,7 +139,7 @@ type ScheduledMatch @entity {
   seatedAgentIds: [BigInt!]!
 }
 
-type SchedulerStat @entity {
+type SchedulerStat @entity(immutable: false) {
   id: ID!                        # constant "stats"
   matchesScheduled: BigInt!
   callbacksReceived: BigInt!

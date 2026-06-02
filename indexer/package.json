@@ -6,7 +6,7 @@
   "scripts": {
     "codegen": "graph codegen",
     "build":   "graph build",
-    "deploy":  "graph deploy bazaar --node $ORMI_GRAPH_NODE --ipfs $ORMI_IPFS",
+    "deploy":  "graph deploy bazaar subgraph.yaml --node https://api.subgraph.somnia.network/deploy --ipfs https://api.subgraph.somnia.network/ipfs --deploy-key $SOMNIA_SUBGRAPH_DEPLOY_KEY --version-label v0.0.1",
     "test":    "graph test"
   },
   "devDependencies": {
