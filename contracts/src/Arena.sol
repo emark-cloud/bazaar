@@ -81,6 +81,8 @@ contract Arena is AgentPlatformBase, Ownable {
         uint256[] pricingRequestIds; // outstanding JSON API requests during Pricing phase
         uint256   openedAt;
         uint256   finalizedAt;
+        uint256   lastRequestAt;   // block.timestamp of the most recent platform request fired;
+                                   // a match with no callback past lastRequestAt+turnTimeout is reapable
     }
 
     uint256 public nextMatchId = 1;
@@ -122,11 +124,22 @@ contract Arena is AgentPlatformBase, Ownable {
     event MatchSettled(uint256 indexed matchId, uint256[] agentIds, int256[] scores, uint256 winnerAgentId);
     event WinnerDeclared(uint256 indexed matchId, uint256 indexed winnerAgentId, int256 winnerScore);
     event MatchVoided(uint256 indexed matchId, string reason);
+    event MatchReaped(uint256 indexed matchId, MatchPhase phaseAtReap);
 
     error InvalidMatch(uint256 matchId);
     error WrongPhase(uint256 matchId, MatchPhase expected, MatchPhase actual);
     error TooFewAgents(uint256 provided);
     error NotJoinable(uint256 agentId);
+    error NotStalled(uint256 matchId, uint256 reapableAt);
+    error UnaffordableMatch(uint256 operatingBalance, uint256 required);
+    // Compact validation errors (4-byte selectors keep Arena under the 24576-byte limit).
+    error BadLotCount();
+    error BadRoundCount();
+    error NoTreasury();
+    error UnderfundedStake();
+    error BadDivisor();
+    error TimeoutTooLow();
+    error CounterNotAhead();
 
     ITreasury public treasury;
     IAuditCouncil public auditCouncil;
@@ -134,8 +147,14 @@ contract Arena is AgentPlatformBase, Ownable {
     /// the ranking math when budgets are denominated in wei (Phase 2 finding).
     uint256 public forfeitPenalty = 100;
 
+    /// @notice Grace period after a platform request is fired before the match is considered
+    /// stalled and may be reaped by anyone. A real consensus round resolves in seconds-to-minutes;
+    /// this is the "the callback is never coming" threshold. Owner-tunable.
+    uint256 public turnTimeout = 15 minutes;
+
     event AuditCouncilSet(address council);
     event ForfeitPenaltySet(uint256 penalty);
+    event TurnTimeoutSet(uint256 turnTimeout);
 
     constructor(address platform_, address registry_, address treasury_, address initialOwner)
         AgentPlatformBase(platform_)
@@ -155,10 +174,18 @@ contract Arena is AgentPlatformBase, Ownable {
         emit ForfeitPenaltySet(p);
     }
 
+    /// @notice Tune the stall grace period. Must be long enough that a healthy consensus round
+    /// never trips it (≥ a few minutes), short enough that a dead match recovers promptly.
+    function setTurnTimeout(uint256 t) external onlyOwner {
+        if (t < 1 minutes) revert TimeoutTooLow();
+        turnTimeout = t;
+        emit TurnTimeoutSet(t);
+    }
+
     /// @notice One-shot match-id bump for when this Arena shares a Treasury with a prior deployment
     /// (matchIds are keys in Treasury._escrows; collisions revert escrowMatch).
     function bumpMatchCounter(uint256 to) external onlyOwner {
-        require(to > nextMatchId, "back");
+        if (to <= nextMatchId) revert CounterNotAhead();
         nextMatchId = to;
     }
 
@@ -173,8 +200,13 @@ contract Arena is AgentPlatformBase, Ownable {
         LotTemplate[] calldata lotTemplates
     ) external payable returns (uint256 matchId) {
         if (agentIds.length < 2 || agentIds.length > 8) revert TooFewAgents(agentIds.length);
-        require(lotTemplates.length >= 1 && lotTemplates.length <= 8, "1..8 lots");
-        require(rounds >= 1 && rounds <= 16, "1..16 rounds");
+        if (lotTemplates.length < 1 || lotTemplates.length > 8) revert BadLotCount();
+        if (rounds < 1 || rounds > 16) revert BadRoundCount();
+
+        // Affordability precheck: refuse a match the Arena can't pay every platform call for.
+        // For exhibition the whole balance (incl. this msg.value) is operating funds.
+        uint256 need = _worstCaseOpCost(agentIds.length, rounds, uint8(lotTemplates.length));
+        if (address(this).balance < need) revert UnaffordableMatch(address(this).balance, need);
 
         matchId = nextMatchId++;
         Match storage m = _matches[matchId];
@@ -210,11 +242,16 @@ contract Arena is AgentPlatformBase, Ownable {
         LotTemplate[] calldata lotTemplates
     ) external payable returns (uint256 matchId) {
         if (agentIds.length < 2 || agentIds.length > 8) revert TooFewAgents(agentIds.length);
-        require(lotTemplates.length >= 1 && lotTemplates.length <= 8, "1..8 lots");
-        require(rounds >= 1 && rounds <= 16, "1..16 rounds");
-        require(address(treasury) != address(0), "no treasury");
+        if (lotTemplates.length < 1 || lotTemplates.length > 8) revert BadLotCount();
+        if (rounds < 1 || rounds > 16) revert BadRoundCount();
+        if (address(treasury) == address(0)) revert NoTreasury();
         uint256 expected = entryStake * agentIds.length;
-        require(msg.value >= expected, "underfunded stake");
+        if (msg.value < expected) revert UnderfundedStake();
+
+        // Affordability precheck: the pot (`expected`) is forwarded to Treasury, so only the
+        // residual balance is available for platform calls. Refuse if it can't cover the match.
+        uint256 need = _worstCaseOpCost(agentIds.length, rounds, uint8(lotTemplates.length));
+        if (address(this).balance - expected < need) revert UnaffordableMatch(address(this).balance - expected, need);
 
         matchId = nextMatchId++;
         Match storage m = _matches[matchId];
@@ -245,7 +282,7 @@ contract Arena is AgentPlatformBase, Ownable {
 
     function _seedLots(uint256 matchId, LotTemplate[] calldata lotTemplates) internal {
         for (uint8 i = 0; i < lotTemplates.length; i++) {
-            require(lotTemplates[i].valueDivisor > 0, "divisor=0");
+            if (lotTemplates[i].valueDivisor == 0) revert BadDivisor();
             Lot storage L = _lots[matchId][i];
             L.category = lotTemplates[i].category;
             L.feedUrl = lotTemplates[i].feedUrl;
@@ -277,6 +314,7 @@ contract Arena is AgentPlatformBase, Ownable {
             roundNumber: 0
         });
         _matches[matchId].pricingRequestIds.push(requestId);
+        _matches[matchId].lastRequestAt = block.timestamp;
         emit LotPricingRequested(matchId, lotIndex, requestId);
     }
 
@@ -290,6 +328,8 @@ contract Arena is AgentPlatformBase, Ownable {
         ReqContext memory ctx = _reqContext[requestId];
         delete _reqContext[requestId];
         Match storage m = _matches[ctx.matchId];
+        // A reap (or void) may have already moved the match out of Pricing — ignore stale callbacks.
+        if (m.phase != MatchPhase.Pricing) return;
 
         uint256 trueValue;
         if (_isSuccess(status, responses)) {
@@ -353,6 +393,7 @@ contract Arena is AgentPlatformBase, Ownable {
             turnIdx: m.currentTurnIdx,
             roundNumber: m.currentRound
         });
+        m.lastRequestAt = block.timestamp;
         emit MoveRequested(matchId, m.currentRound, m.currentTurnIdx, requestId, agentId);
     }
 
@@ -732,6 +773,55 @@ contract Arena is AgentPlatformBase, Ownable {
         Match storage m = _matches[matchId];
         for (uint256 i = 0; i < m.agentIds.length; i++) {
             registry.setJoinable(m.agentIds[i], true);
+        }
+    }
+
+    // --- Liveness / stall recovery --------------------------------------------------------
+
+    /// @notice Upper bound on operating funds one match can consume: every move and every lot
+    /// pricing pays a full deposit (floor + perAgentPrice × subcommittee). Deposits are largely
+    /// rebated on callback, so this is conservative — but it guarantees the match can finish.
+    function _worstCaseOpCost(uint256 numAgents, uint8 rounds, uint8 numLots)
+        internal view returns (uint256)
+    {
+        uint256 floor = platform.getRequestDeposit();
+        uint256 depMove  = floor + AgentIds.PRICE_LLM      * AgentIds.DEFAULT_SUBCOMMITTEE;
+        uint256 depPrice = floor + AgentIds.PRICE_JSON_API * AgentIds.DEFAULT_SUBCOMMITTEE;
+        return (numAgents * rounds) * depMove + uint256(numLots) * depPrice;
+    }
+
+    /// @notice Timestamp after which `reapStalled` may be called for a match (0 = not reapable).
+    function reapableAt(uint256 matchId) public view returns (uint256) {
+        Match storage m = _matches[matchId];
+        if (m.phase != MatchPhase.Pricing && m.phase != MatchPhase.Negotiating) return 0;
+        return m.lastRequestAt + turnTimeout;
+    }
+
+    /// @notice Permissionless recovery for a match whose platform callback never arrived.
+    /// After `turnTimeout` of silence, anyone can force the match to terminate — crucially
+    /// WITHOUT firing another platform request, so this works even if the platform is fully down:
+    ///   - Pricing  → void the match, refund (real-stakes) and release the agents. No lot ever
+    ///     got a value, so there is nothing to settle.
+    ///   - Negotiating → settle on the holdings acquired so far (`_toSettling` resolves standing
+    ///     offers, reveals, scores, releases agents, and pays out / audits as usual).
+    /// Either way the four agents are freed (no permanent brick) and any escrowed pot is resolved.
+    function reapStalled(uint256 matchId) external {
+        Match storage m = _matches[matchId];
+        uint256 deadline = reapableAt(matchId);
+        if (deadline == 0 || block.timestamp < deadline) revert NotStalled(matchId, deadline);
+
+        emit MatchReaped(matchId, m.phase);
+        if (m.phase == MatchPhase.Pricing) {
+            m.phase = MatchPhase.Voided;
+            emit MatchVoided(matchId, "pricing failed"); // reuse literal (dedup) — no value to settle
+            _releaseAgents(matchId);
+            if (m.kind == MatchKind.RealStakes && address(treasury) != address(0)) {
+                treasury.refundMatch(matchId);
+            }
+        } else {
+            // Negotiating: terminate on current holdings. _toSettling → _settle releases agents
+            // and routes the pot (Treasury.settleMatch / audit) without touching the move platform.
+            _toSettling(matchId);
         }
     }
 

@@ -4,7 +4,9 @@ out = "out"
 libs = ["lib"]
 solc_version = "0.8.30"
 optimizer = true
-optimizer_runs = 200
+# 100 (was 200) keeps the liveness-patched Arena under EIP-170's 24576-byte limit, paired with
+# Arena's require-string -> custom-error conversion. via_ir is required (legacy hits stack-too-deep).
+optimizer_runs = 100
 evm_version = "cancun"
 via_ir = true
 remappings = [

@@ -296,4 +296,89 @@ contract ArenaTest is Test {
         // agents released
         assertTrue(reg.getAgent(hawk).joinable);
     }
+
+    // --- Liveness / stall recovery --------------------------------------------------------
+
+    /// A negotiation whose next move callback never arrives can be reaped to settlement on the
+    /// holdings acquired so far — no further platform call, agents freed.
+    function testReapStalledNegotiationSettlesOnHoldings() public {
+        uint256 matchId = _openMatch();
+        plat.deliverUint(1, 350000);
+        plat.deliverUint(2, 8800000);
+        // Hawk takes lot 1 at 10; the next callback (Diplomat, reqId 4) is then dropped forever.
+        plat.deliverString(3, "OFFER|lot=1|side=BUY|price=10");
+
+        // Not reapable yet — still inside the grace period.
+        uint256 dl = arena.reapableAt(matchId);
+        vm.expectRevert(abi.encodeWithSelector(Arena.NotStalled.selector, matchId, dl));
+        arena.reapStalled(matchId);
+
+        vm.warp(block.timestamp + arena.turnTimeout() + 1);
+        arena.reapStalled(matchId);
+
+        (, Arena.MatchPhase phase, , , , , , ) = arena.getMatch(matchId);
+        assertEq(uint256(phase), uint256(Arena.MatchPhase.Finalized), "settled on holdings");
+        Arena.Lot memory l1 = arena.getLot(matchId, 0);
+        assertEq(l1.ownerAgentId, hawk, "hawk keeps the lot he won pre-stall");
+        assertEq(l1.paidPrice, 10);
+        // all four agents freed — no permanent brick
+        assertTrue(reg.getAgent(hawk).joinable);
+        assertTrue(reg.getAgent(diplo).joinable);
+        assertTrue(reg.getAgent(quant).joinable);
+        assertTrue(reg.getAgent(contra).joinable);
+    }
+
+    /// A pricing callback that never arrives can be reaped to a void (nothing to settle), agents freed.
+    function testReapStalledPricingVoids() public {
+        uint256 matchId = _openMatch();
+        // never deliver pricing reqs 1,2
+        vm.warp(block.timestamp + arena.turnTimeout() + 1);
+        arena.reapStalled(matchId);
+        (, Arena.MatchPhase phase, , , , , , ) = arena.getMatch(matchId);
+        assertEq(uint256(phase), uint256(Arena.MatchPhase.Voided));
+        assertTrue(reg.getAgent(hawk).joinable);
+        assertTrue(reg.getAgent(contra).joinable);
+    }
+
+    /// A late callback that lands after a reap is a harmless no-op (phase guard), not a revert.
+    function testStaleCallbackAfterReapIsNoop() public {
+        uint256 matchId = _openMatch();
+        plat.deliverUint(1, 350000);
+        plat.deliverUint(2, 8800000);
+        plat.deliverString(3, "OFFER|lot=1|side=BUY|price=10"); // reqId 4 (Diplomat) now in-flight
+        vm.warp(block.timestamp + arena.turnTimeout() + 1);
+        arena.reapStalled(matchId);
+
+        // The dropped move finally arrives — must change nothing.
+        plat.deliverString(4, "OFFER|lot=2|side=BUY|price=99");
+        (, Arena.MatchPhase phase, , , , , , ) = arena.getMatch(matchId);
+        assertEq(uint256(phase), uint256(Arena.MatchPhase.Finalized));
+        Arena.Lot memory l2 = arena.getLot(matchId, 1);
+        assertEq(l2.ownerAgentId, 0, "stale move did not buy lot 2");
+    }
+
+    /// A finalized match is never reapable.
+    function testReapOnFinalizedReverts() public {
+        uint256 matchId = _openMatch();
+        plat.deliverUint(1, 100);
+        plat.deliverUint(2, 200);
+        for (uint256 i = 3; i <= 10; i++) plat.deliverString(i, "PASS");
+        (, Arena.MatchPhase phase, , , , , , ) = arena.getMatch(matchId);
+        assertEq(uint256(phase), uint256(Arena.MatchPhase.Finalized));
+        assertEq(arena.reapableAt(matchId), 0, "finalized = not reapable");
+        vm.expectRevert(abi.encodeWithSelector(Arena.NotStalled.selector, matchId, uint256(0)));
+        arena.reapStalled(matchId);
+    }
+
+    /// Opening a match the Arena can't afford to finish is refused up-front.
+    function testUnaffordableMatchReverts() public {
+        uint256[] memory ids = new uint256[](4);
+        ids[0] = hawk; ids[1] = diplo; ids[2] = quant; ids[3] = contra;
+        Arena.LotTemplate[] memory lots = new Arena.LotTemplate[](2);
+        lots[0] = Arena.LotTemplate("ETH-USD", "u", "s", 0, 1, "~2000");
+        lots[1] = Arena.LotTemplate("BTC-USD", "u", "s", 0, 1, "~80000");
+        // worst case for 4 agents x 2 rounds + 2 lots = 2.16 ether; fund only 1 ether.
+        vm.expectRevert(abi.encodeWithSelector(Arena.UnaffordableMatch.selector, uint256(1 ether), uint256(2_160_000_000_000_000_000)));
+        arena.openExhibition{value: 1 ether}(ids, 25, 2, lots);
+    }
 }
