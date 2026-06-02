@@ -81,11 +81,49 @@ with `VITE_SUBGRAPH_URL=http://localhost:8000/subgraphs/name/bazaar` (see `front
   graph-node does *not* need full sync to serve data — it serves each entity as soon as it passes
   that block. For a fast local check, temporarily raise every `startBlock` to just before the
   cluster you care about (e.g. `392730000` for the Phase-3/4 Match #100 + audit cluster) and entities
-  appear within ~1–2 minutes. (WSL2 note: the compose file pins explicit DNS + a host entry because
-  Docker's embedded resolver intermittently fails to resolve the RPC host, which stalls the ingestor.)
+  appear within ~1–2 minutes. (WSL2 note: the compose file pins explicit public DNS resolvers
+  because Docker's embedded resolver intermittently fails to resolve the RPC host, stalling the ingestor.)
 
 The pinned `startBlock`s assume an archive RPC that can serve the full range (Ormi's). Against a
 slow public RPC, raise them as above for local smoke tests.
+
+## Self-host on a VPS (production fallback)
+
+When the hosted services are down (Ormi `/deploy` resets; Protofire/Chain.Love "error proxying
+request to upstream"), run the same `docker/docker-compose.yml` stack on a VPS and own the whole
+path — no deploy key, no access token, no upstream dependency. The compose file binds every port to
+`127.0.0.1`, so the admin/deploy port (8020) is never internet-reachable; only the query port (8000)
+is exposed, via an HTTPS reverse proxy.
+
+```bash
+git clone https://github.com/emark-cloud/bazaar.git && cd bazaar/indexer
+docker compose -f docker/docker-compose.yml up -d                 # graph-node + IPFS + postgres
+npm install && npx @graphprotocol/graph-cli@latest codegen
+npx @graphprotocol/graph-cli@latest create --node http://localhost:8020 bazaar
+npx @graphprotocol/graph-cli@latest deploy --node http://localhost:8020 \
+      --ipfs http://localhost:5001 --version-label v0.0.1 bazaar subgraph.yaml
+```
+
+Verify indexing, then expose 8000 over HTTPS (Vercel is HTTPS, so a plain-`http://` subgraph URL is
+blocked by mixed-content):
+
+```bash
+# indexing status:
+curl -s localhost:8030/graphql -H 'content-type: application/json' \
+  -d '{"query":"{indexingStatuses{health chains{latestBlock{number} chainHeadBlock{number}}}}"}'
+```
+
+- **With a domain → Caddy:** `reverse_proxy 127.0.0.1:8000` → `https://subgraph.<domain>/subgraphs/name/bazaar`
+- **No domain → Cloudflare Tunnel:** `cloudflared tunnel --url http://localhost:8000` (quick-tunnel URL
+  changes on restart; use a named tunnel for a stable submission URL).
+
+Then set `VITE_SUBGRAPH_URL=https://<host>/subgraphs/name/bazaar` and rebuild the frontend.
+
+**Sync time:** a full backfill from the Registry `startBlock` (~6.3M blocks behind head) over Somnia's
+getLogs-throttled RPC takes many hours — set-and-forget on the VPS. graph-node serves each entity as
+soon as it passes that block, so the live-match data (≥398.7M) appears well before the ladder history
+finishes. For an instant live board at the cost of older history, raise the four low `startBlock`s
+(Registry/Treasury/AuditCouncil/AgentPlatform) to ~398772000.
 
 ## Notes
 
