@@ -142,7 +142,20 @@ function TranscriptLine({
           </div>
           <span className={`block text-[13px] ${isFail ? "text-status-timeout" : "text-text-secondary"}`}>{phrase}</span>
           {move.requestId !== undefined && (
-            <div className="label-xs mt-0.5">req <span className="text-text-secondary">{shortId(move.requestId)}</span> · 3 validators</div>
+            move.kind === "DEFAULTED" ? (
+              <span className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-status-timeout/40 text-status-timeout">
+                <span aria-hidden>⛓</span> on-chain · request failed
+                <span className="text-text-dim">· req {shortId(move.requestId)}</span>
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-value-up/40 text-value-up"
+                title="This move was decided by a Majority vote of a 3-validator subcommittee running the LLM on-chain. Click to see the request trace + receipt."
+              >
+                <span aria-hidden>⛓</span> consensus&nbsp;✓ · 3 validators
+                <span className="text-text-dim">· req {shortId(move.requestId)}</span>
+              </span>
+            )
           )}
         </div>
         <span className="label-xs pt-0.5 shrink-0">{expanded ? "▾" : "▸"}</span>

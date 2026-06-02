@@ -2,6 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { MiniLadder } from "../components/MiniLadder";
 import { LiveMatchPreview } from "../components/LiveMatchPreview";
+import { HowItWorks } from "../components/HowItWorks";
+import { ArenaControlCard } from "../components/ArenaControlCard";
 import { fetchSchedulerStats, fetchTreasurySeasonFund } from "../chain/reads";
 import { formatStt } from "../lib/format";
 import { findLatestMatchId } from "../chain/events";
@@ -34,8 +36,20 @@ export default function Hub() {
     return () => { cancel = true; };
   }, []);
 
+  // Live vs. replay vs. cold-start. The hero promises "negotiating right now" —
+  // only honour that when the latest match is genuinely open. A finalized match
+  // is framed as a replay so a visitor landing between matches still sees the
+  // loop play out instead of an empty board or a false "live" claim.
+  const latestRow = latestMatch ? recent.find((r) => r.matchId === latestMatch) : undefined;
+  const status: "live" | "replay" | "none" = !latestMatch
+    ? "none"
+    : latestRow && latestRow.finalizedAt !== undefined
+    ? "replay"
+    : "live";
+
   return (
-    <div className="p-6 grid grid-cols-12 gap-4 h-full">
+    <div className="p-6 flex flex-col gap-4">
+      <div className="grid grid-cols-12 gap-4">
       {/* LIVING MATCH HERO */}
       <section className="col-span-8 panel p-7 flex flex-col relative overflow-hidden">
         {/* faint radial amber glow, top-left (logo-stage style) */}
@@ -46,9 +60,9 @@ export default function Hub() {
         />
 
         <div className="relative flex items-center gap-2.5 label-sm">
-          <span className="flex items-center gap-2 text-accent">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot" />
-            {latestMatch ? "live now" : "idle"}
+          <span className={`flex items-center gap-2 ${status === "live" ? "text-accent" : status === "replay" ? "text-value-up" : "text-text-dim"}`}>
+            <span className={`inline-block w-1.5 h-1.5 rounded-full ${status === "live" ? "bg-accent animate-live-dot" : status === "replay" ? "bg-value-up" : "bg-text-dim"}`} />
+            {status === "live" ? "live now" : status === "replay" ? "latest match · replay" : "idle"}
           </span>
           <span className="text-text-dim">·</span>
           <span>{latestMatch ? `match #${latestMatch.toString()}` : "no matches yet"}</span>
@@ -57,7 +71,13 @@ export default function Hub() {
         </div>
 
         <h1 className="relative font-display mt-3.5 text-[40px] leading-[1.08] tracking-[-0.02em] text-text-primary">
-          Four agents are<br />negotiating right now<span className="text-accent">.</span>
+          {status === "replay" ? (
+            <>Watch the last match<br />play out, move by move<span className="text-accent">.</span></>
+          ) : status === "none" ? (
+            <>The arena is<br />warming up<span className="text-accent">.</span></>
+          ) : (
+            <>Four agents are<br />negotiating right now<span className="text-accent">.</span></>
+          )}
         </h1>
 
         <p className="relative mt-3.5 text-text-secondary text-sm max-w-[60ch] leading-relaxed">
@@ -80,7 +100,7 @@ export default function Hub() {
             className="inline-flex items-center gap-2 px-6 py-3 bg-accent text-bg-base font-display rounded-sm hover:brightness-110"
             style={{ boxShadow: "0 0 0 1px #F5A623, 0 8px 28px -10px rgba(245,166,35,.55)" }}
           >
-            ▶&nbsp;&nbsp;ENTER LIVE MATCH
+            ▶&nbsp;&nbsp;{status === "replay" ? "WATCH REPLAY" : status === "none" ? "OPEN LIVE BOARD" : "ENTER LIVE MATCH"}
           </Link>
           <span className="font-mono text-xs text-text-secondary tracking-[.02em] lowercase">
             full board · transcript · one-click chain trace
@@ -113,8 +133,9 @@ export default function Hub() {
         </div>
       </section>
 
-      {/* BROWSE REPLAYS + MINT */}
+      {/* CONTROL + LADDER + MINT */}
       <aside className="col-span-4 flex flex-col gap-4 min-h-0">
+        <ArenaControlCard />
         <section className="panel p-4 flex-1 min-h-0 overflow-hidden">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-display text-lg">Ladder</h3>
@@ -136,6 +157,10 @@ export default function Hub() {
           </Link>
         </section>
       </aside>
+      </div>
+
+      {/* The "get it in 30s" band — loop explainer + the four personas by name */}
+      <HowItWorks />
     </div>
   );
 }

@@ -184,9 +184,20 @@ export default function LiveMatch() {
           </span>
         </div>
         {audit && audit.status !== 0 && (
-          <div className="label-sm">
-            audit <span className={audit.verdictsSuspect > 0 ? "text-value-down" : "text-accent"}>{AUDIT_STATUS[audit.status]}</span>
-            {" · "}clean {audit.verdictsClean} / suspect {audit.verdictsSuspect}
+          <div
+            className="label-sm flex items-center gap-2"
+            title="A randomly-selected (Chainlink VRF) panel of agents re-reviews the finished match for collusion. While they deliberate the payout is frozen; a flagged match stays frozen until an appeal window closes."
+          >
+            <span aria-hidden>⚖</span>
+            audit council
+            <span className={audit.verdictsSuspect > 0 ? "text-value-down" : "text-accent"}>{AUDIT_STATUS[audit.status]}</span>
+            {audit.status !== 3 ? (
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-accent/50 text-accent">payout frozen</span>
+            ) : audit.verdictsSuspect > 0 ? (
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-value-down/50 text-value-down">flagged · {audit.verdictsSuspect} suspect</span>
+            ) : (
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-value-up/50 text-value-up">cleared · {audit.verdictsClean} clean</span>
+            )}
           </div>
         )}
       </div>

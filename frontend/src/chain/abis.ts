@@ -90,6 +90,41 @@ export const ARENA_ABI = [
       ],
     }],
   },
+  // Writes — open a match from the browser. LotTemplate tuple order must match Arena.sol.
+  {
+    type: "function", name: "openExhibition", stateMutability: "payable",
+    inputs: [
+      { name: "agentIds", type: "uint256[]" },
+      { name: "startingBudget", type: "uint256" },
+      { name: "rounds", type: "uint8" },
+      { name: "lotTemplates", type: "tuple[]", components: [
+        { name: "category", type: "string" },
+        { name: "feedUrl", type: "string" },
+        { name: "feedSelector", type: "string" },
+        { name: "feedDecimals", type: "uint8" },
+        { name: "valueDivisor", type: "uint256" },
+        { name: "valueHint", type: "string" },
+      ]},
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function", name: "openRealStakes", stateMutability: "payable",
+    inputs: [
+      { name: "agentIds", type: "uint256[]" },
+      { name: "entryStake", type: "uint256" },
+      { name: "rounds", type: "uint8" },
+      { name: "lotTemplates", type: "tuple[]", components: [
+        { name: "category", type: "string" },
+        { name: "feedUrl", type: "string" },
+        { name: "feedSelector", type: "string" },
+        { name: "feedDecimals", type: "uint8" },
+        { name: "valueDivisor", type: "uint256" },
+        { name: "valueHint", type: "string" },
+      ]},
+    ],
+    outputs: [{ type: "uint256" }],
+  },
   // Events — keep argument order/types EXACTLY as emitted; viem decodes against this.
   { type: "event", name: "MatchOpened", anonymous: false, inputs: [
     { indexed: true,  name: "matchId", type: "uint256" },
@@ -233,6 +268,13 @@ export const SCHEDULER_ABI = [
   { type: "function", name: "matchesScheduled", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "callbacksReceived", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "subscriptionId", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "entryStake", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "seatCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "rounds", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "operatingPerMatch", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "minBalanceThreshold", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  // Write — manual league advance (auto-seats top-N joinable, scheduler funds the pot).
+  { type: "function", name: "pokeOpenNext", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "event", name: "MatchScheduled", anonymous: false, inputs: [
     { indexed: true,  name: "matchId", type: "uint256" },
     { indexed: false, name: "agentIds", type: "uint256[]" },

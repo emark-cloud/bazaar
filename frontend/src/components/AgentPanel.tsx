@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { Agent } from "../chain/types";
 import { SigilTile, type SigilState } from "./SigilTile";
-import { personaColorOf } from "../sigils/personas";
+import { personaColorOf, nameToPersona, PERSONA_LABEL } from "../sigils/personas";
 import { formatBudget } from "../lib/format";
 import { CountUp } from "./CountUp";
 
@@ -25,6 +25,11 @@ export function AgentPanel({
   // The agent's identity color drives the left rule (--p); amber chrome handles
   // turn/winner emphasis. Persona color is identity only — never a fill.
   const pColor = personaColorOf(agent.name);
+
+  // Archetype label ("The Hawk" …) so a spectator knows this is a designed
+  // persona, not a random name. User-minted agents resolve to generic → omit.
+  const persona = nameToPersona(agent.name);
+  const personaLabel = persona === "generic" ? null : PERSONA_LABEL[persona];
 
   // Active turn: inset amber 1px ring + soft amber outer glow.
   // Winner: solid amber ring + breathing winner-glow (own keyframe).
@@ -52,6 +57,9 @@ export function AgentPanel({
             <span className="label-xs">#{agent.id.toString()}</span>
           )}
         </div>
+        {personaLabel && (
+          <div className="label-xs mt-0.5" style={{ color: pColor }}>{personaLabel}</div>
+        )}
         <div className="flex items-center gap-3 mt-1 text-xs font-mono">
           {active && !isWinner && (
             <span className="text-accent inline-flex items-center">

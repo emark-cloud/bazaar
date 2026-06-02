@@ -3,7 +3,7 @@ import type { Agent, MoveEntry } from "../chain/types";
 import { fetchMatch, fetchAllLots, fetchAllAgents } from "../chain/reads";
 import { fetchMatchEvents, eventsToMoves } from "../chain/events";
 import { SigilTile } from "./SigilTile";
-import { personaColorOf } from "../sigils/personas";
+import { personaColorOf, nameToPersona, PERSONA_LABEL } from "../sigils/personas";
 import { formatBudget } from "../lib/format";
 
 interface PreviewState {
@@ -92,6 +92,8 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
         {state.agentIds.map((id, idx) => {
           const a = agentById.get(id.toString());
           const name = a?.name ?? `Agent #${id}`;
+          const persona = nameToPersona(name);
+          const personaLabel = persona === "generic" ? null : PERSONA_LABEL[persona];
           const active = id === activeId;
           return (
             <div
@@ -104,6 +106,9 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
               <SigilTile name={name} size={40} state={active ? "thinking" : "idle"} ring={active} />
               <div className="flex flex-col gap-0.5 min-w-0">
                 <span className="font-display text-[13px] truncate">{name}</span>
+                {personaLabel && (
+                  <span className="label-xs leading-none" style={{ color: personaColorOf(name) }}>{personaLabel}</span>
+                )}
                 <span className="font-mono text-xs text-text-primary">
                   {formatBudget(state.budgets[idx])}
                   <span className="text-text-dim"> STT</span>
@@ -139,6 +144,9 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
               opacity={i === 0 ? 1 : i === 1 ? 0.62 : 0.34}
             />
           ))}
+        </div>
+        <div className="mt-auto pt-2 label-xs text-text-dim border-t border-border-subtle/60">
+          ⛓ each move is a consensus-verified on-chain LLM call
         </div>
       </div>
 

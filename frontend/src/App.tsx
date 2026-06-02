@@ -6,6 +6,7 @@ import Ladder from "./screens/Ladder";
 import Agents from "./screens/Agents";
 import AgentProfile from "./screens/AgentProfile";
 import Mint from "./screens/Mint";
+import Run from "./screens/Run";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/agents" element={<Agents />} />
         <Route path="/agents/:id" element={<AgentProfile />} />
         <Route path="/mint" element={<Mint />} />
+        <Route path="/run" element={<Run />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -74,6 +74,7 @@ export default function AppShell() {
         <nav className="w-16 bg-bg-panel border-r border-border-subtle flex flex-col items-center py-2">
           <NavItem to="/"        label="HUB"   glyph="●" />
           <NavItem to="/live"    label="LIVE"  glyph="▶" />
+          <NavItem to="/run"     label="RUN"   glyph="✦" />
           <NavItem to="/ladder"  label="LDR"   glyph="♛" />
           <NavItem to="/agents"  label="AGNT"  glyph="◈" />
           <NavItem to="/mint"    label="MINT"  glyph="+" />

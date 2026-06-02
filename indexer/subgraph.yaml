@@ -9,7 +9,7 @@ dataSources:
     name: Arena
     network: somnia-testnet                # confirm with Ormi the slug they expect
     source:
-      address: "0xb129ec7d06e3136517c188113fe9b8a10f882738"
+      address: "0xaa8a0cf920a3ce19ebaa5127f4e40cb049c94858"
       abi: Arena
       startBlock: 392738646                # block of Match #3 / earliest Arena v3 activity
     mapping:
@@ -151,7 +151,7 @@ dataSources:
     name: LeagueScheduler
     network: somnia-testnet
     source:
-      address: "0x41431f15ab45689bbe5eb71690c58b291dfda7e1"
+      address: "0x0fdad151de1e8357338f850978b148d09c4a243d"
       abi: LeagueScheduler
       startBlock: 392753000
     mapping:
