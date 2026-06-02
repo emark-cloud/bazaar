@@ -16,10 +16,11 @@ services:
     # proxy (Caddy / cloudflared) on the host, which reaches it over localhost.
     ports:
       - "127.0.0.1:8000:8000"   # GraphQL HTTP (front with TLS for hosted frontends)
-      - "127.0.0.1:8001:8001"   # GraphQL WS
       - "127.0.0.1:8020:8020"   # admin / deploy JSON-RPC — keep private
       - "127.0.0.1:8030:8030"   # subgraph indexing status
       - "127.0.0.1:8040:8040"   # prometheus metrics
+      # NB: 8001 (GraphQL WS) is intentionally NOT published — the frontend queries
+      # over HTTP and some hosts already run a service on 8001. Re-add if you need subs.
     depends_on:
       - ipfs
       - postgres
@@ -54,8 +55,9 @@ services:
 
   postgres:
     image: postgres:14
-    ports:
-      - "127.0.0.1:5432:5432"
+    # No host port publish: graph-node reaches Postgres over the compose network
+    # (service name `postgres`), so there's nothing to expose — and publishing 5432
+    # collides with a system Postgres already on the host (common on VPSes).
     command:
       - "postgres"
       - "-cshared_preload_libraries=pg_stat_statements"

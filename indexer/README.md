@@ -95,6 +95,12 @@ path — no deploy key, no access token, no upstream dependency. The compose fil
 `127.0.0.1`, so the admin/deploy port (8020) is never internet-reachable; only the query port (8000)
 is exposed, via an HTTPS reverse proxy.
 
+> **Verified on a 2-vCPU / 8 GB Ubuntu 24.04 VPS:** the Somnia archive RPC backfills at
+> **~700 blocks/sec**, so a full sync from `392455000` to head (~6.5M blocks) completes in **~2.5 h**.
+> Two host-port gotchas (already handled in the compose): Postgres is **not** published (a system
+> Postgres usually owns `5432`), and the GraphQL WS port `8001` is **not** published (often taken).
+> Neither is needed — graph-node↔Postgres go over the compose network, and the frontend queries over HTTP.
+
 ```bash
 git clone https://github.com/emark-cloud/bazaar.git && cd bazaar/indexer
 docker compose -f docker/docker-compose.yml up -d                 # graph-node + IPFS + postgres
