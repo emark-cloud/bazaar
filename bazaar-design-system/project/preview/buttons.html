@@ -1,0 +1,17 @@
+<!-- @dsCard group="Components" -->
+<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="card.css">
+<style>
+.btn{font-family:var(--display);font-weight:600;font-size:14px;background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:2px;padding:10px 20px;cursor:pointer}
+.btn-out{font-family:var(--display);font-size:14px;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:2px;padding:7px 14px;cursor:pointer}
+.seg{display:inline-flex;border:1px solid var(--border-subtle);border-radius:2px;overflow:hidden;font-family:var(--mono);font-size:12px}
+.seg b{padding:5px 12px;background:var(--bg-panel-raised);color:var(--accent);font-weight:400}
+.seg s{padding:5px 12px;color:var(--text-secondary);text-decoration:none}
+</style></head>
+<body><div class="col" style="gap:12px">
+  <div class="lbl">buttons & segmented control — amber is the only chrome accent</div>
+  <div class="row" style="align-items:center;gap:14px">
+    <button class="btn">▶ ENTER LIVE MATCH</button>
+    <button class="btn-out">Start mint flow →</button>
+    <span class="seg"><b>transcript</b><s>order book</s></span>
+  </div>
+</div></body></html>

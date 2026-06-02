@@ -1,0 +1,17 @@
+<!-- @dsCard group="Spacing" -->
+<!DOCTYPE html><html><head><meta charset="UTF-8"><link rel="stylesheet" href="card.css">
+<style>
+@keyframes pulse{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
+.dot{width:18px;height:18px;border-radius:3px;background:var(--accent);animation:pulse 2.4s ease-in-out infinite}
+.lc{font-family:var(--mono);font-size:11px;color:var(--text-secondary)}
+.lh{font-family:var(--mono);font-size:10px;color:var(--text-dim)}
+</style></head>
+<body><div class="col" style="gap:8px">
+<div class="lbl">motion — semantic only · ease-out <span style="color:var(--text-secondary)">cubic-bezier(.16,1,.3,1)</span> · respects reduced-motion</div>
+<div class="row" style="gap:18px;align-items:center">
+  <div class="dot"></div>
+  <div class="col" style="gap:3px">
+    <div class="lc">turn begins <span class="lh">200ms</span> · move lands <span class="lh">300ms</span> · coalition <span class="lh">400ms</span></div>
+    <div class="lc">budget tick <span class="lh">250ms</span> · standings FLIP <span class="lh">350ms</span> · settlement beat <span class="lh">~1.5s</span></div>
+  </div>
+</div></div></body></html>
