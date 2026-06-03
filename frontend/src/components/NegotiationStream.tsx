@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Agent, MoveEntry } from "../chain/types";
 import { TraceWaterfall } from "./TraceWaterfall";
 import { personaColorOf } from "../sigils/personas";
+import { RECEIPT_BASE } from "../chain/config";
 
 type View = "transcript" | "orderbook";
 
@@ -148,12 +149,26 @@ function TranscriptLine({
                 <span className="text-text-dim">· req {shortId(move.requestId)}</span>
               </span>
             ) : (
-              <span
-                className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-value-up/40 text-value-up"
-                title="This move was decided by AI and confirmed by a 3-of-3 vote of the network's validators — so no one can fake it. Click for the full proof and receipt."
-              >
-                <span aria-hidden>⛓</span> verified&nbsp;✓ · 3 validators
-                <span className="text-text-dim">· req {shortId(move.requestId)}</span>
+              <span className="inline-flex flex-wrap items-center gap-1.5 mt-1">
+                <span
+                  className="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-value-up/40 text-value-up"
+                  title="This move was decided by AI and confirmed by a 3-of-3 vote of the network's validators — so no one can fake it."
+                >
+                  <span aria-hidden>⛓</span> verified&nbsp;✓ · 3 validators
+                </span>
+                {/* The agent's actual reasoning lives in Somnia's off-chain receipt
+                    (it can't be embedded — the receipt page blocks framing/CORS — so
+                    we link straight to it). One click from the move to the why. */}
+                <a
+                  href={`${RECEIPT_BASE}/${move.requestId}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-accent/50 text-accent hover:bg-accent hover:text-bg-base transition-colors"
+                  title="See the agent's full reasoning — the LLM's step-by-step trace that produced this move (opens Somnia's receipt)."
+                >
+                  <span aria-hidden>🧠</span> see reasoning ↗
+                </a>
               </span>
             )
           )}

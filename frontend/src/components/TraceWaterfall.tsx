@@ -35,8 +35,9 @@ export function TraceWaterfall({ move }: { move: MoveEntry }) {
               target="_blank"
               rel="noreferrer noopener"
               className="text-accent hover:underline"
+              title="The agent's full reasoning trace + validator receipt"
             >
-              → view receipt ↗
+              🧠 view the agent's reasoning ↗
             </a>
           )}
         </div>
