@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Agent, MoveEntry } from "../chain/types";
 import { fetchMatch, fetchAllLots, fetchAllAgents } from "../chain/reads";
 import { fetchMatchEvents, eventsToMoves } from "../chain/events";
+import { loadMatchMoves } from "../chain/data";
 import { SigilTile } from "./SigilTile";
 import { personaColorOf, nameToPersona, PERSONA_LABEL } from "../sigils/personas";
 import { formatBudget } from "../lib/format";
@@ -57,8 +58,11 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
     let cancel = false;
     async function tick() {
       try {
-        const evs = await fetchMatchEvents(matchId);
-        if (!cancel) setMoves(eventsToMoves(evs));
+        // Subgraph-first so a replay of any-age match populates; RPC log-scan
+        // (recent window) only as fallback for a not-yet-indexed live match.
+        const next = await loadMatchMoves(matchId, async () =>
+          eventsToMoves(await fetchMatchEvents(matchId)));
+        if (!cancel) setMoves(next);
       } catch { /* keep last good state */ }
     }
     tick();

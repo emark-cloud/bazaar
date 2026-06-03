@@ -1,7 +1,7 @@
 // GraphQL data path against the Bazaar subgraph (Ormi / local graph-node).
 // Opt-in: set VITE_SUBGRAPH_URL. When unset or on error, callers fall back to
 // direct-RPC reads (see ./reads.ts), so the UI works with or without an indexer.
-import type { Agent, Hex } from "./types";
+import type { Agent, Hex, MoveEntry, MoveKind } from "./types";
 
 export const SUBGRAPH_URL: string | undefined = import.meta.env.VITE_SUBGRAPH_URL?.trim() || undefined;
 export const subgraphEnabled = !!SUBGRAPH_URL;
@@ -143,4 +143,39 @@ export async function sgRecentMatches(limit = 8): Promise<MatchRow[]> {
     winnerAgentId: toBig(m.winnerAgentId),
     pot: toBig(m.pot),
   }));
+}
+
+/**
+ * Every move for one match, oldest-first — the reliable source for the live
+ * board / replay transcript. The RPC log-scan in ./events.ts only reaches a few
+ * thousand blocks back, so on Somnia's fast chain it misses any match more than
+ * a couple minutes old; the subgraph has the full history regardless of age.
+ */
+export async function sgMatchMoves(matchId: bigint): Promise<MoveEntry[]> {
+  const data = await gql<{ moves: {
+    round: number; turnIdx: number; kind: string; raw: string; reason: string | null;
+    requestId: string | null; blockNumber: string; agent: { tokenId: string };
+  }[] }>(`
+    query MatchMoves($match: String!) {
+      moves(first: 1000, where: { match: $match }, orderBy: blockNumber, orderDirection: asc) {
+        round turnIdx kind raw reason requestId blockNumber
+        agent { tokenId }
+      }
+    }`, { match: matchId.toString() });
+
+  return data.moves
+    .map((m) => ({
+      matchId,
+      round: m.round,
+      turnIdx: m.turnIdx,
+      agentId: BigInt(m.agent.tokenId),
+      kind: m.kind as MoveKind,
+      raw: m.raw,
+      reason: m.reason ?? undefined,
+      requestId: toBig(m.requestId),
+      blockNumber: toBig(m.blockNumber),
+    }))
+    // blockNumber asc ≈ chronological, but a defaulted turn can share ordering;
+    // (round, turnIdx) is the canonical play order, so settle ties on it.
+    .sort((a, b) => (a.round - b.round) || (a.turnIdx - b.turnIdx));
 }

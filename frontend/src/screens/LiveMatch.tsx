@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchAllAgents, fetchAllLots, fetchMatch, fetchAuditState } from "../chain/reads";
 import { findLatestMatchId, findMatchOpenBlock, fetchMatchEvents, eventsToMoves } from "../chain/events";
+import { loadMatchMoves } from "../chain/data";
 import type { Agent, MoveEntry } from "../chain/types";
 import { AgentPanel } from "../components/AgentPanel";
 import { NegotiationStream } from "../components/NegotiationStream";
@@ -110,9 +111,12 @@ export default function LiveMatch() {
     let cancel = false;
     async function tick() {
       try {
-        const evs = await fetchMatchEvents(matchId!, openBlock ?? undefined);
-        if (!cancel) setMoves(eventsToMoves(evs));
-      } catch (e) { console.warn("events fetch failed", e); }
+        // Subgraph first (full history for any-age replay); RPC log-scan only as
+        // a fallback for a just-opened match not yet indexed.
+        const next = await loadMatchMoves(matchId!, async () =>
+          eventsToMoves(await fetchMatchEvents(matchId!, openBlock ?? undefined)));
+        if (!cancel) setMoves(next);
+      } catch (e) { console.warn("moves fetch failed", e); }
     }
     tick();
     const finalized = (snapshot?.phase ?? 0) >= 4;

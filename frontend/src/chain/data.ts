@@ -6,10 +6,10 @@ import { publicClient } from "./client";
 import { CONTRACTS } from "./config";
 import { AGENT_REGISTRY_ABI } from "./abis";
 import {
-  subgraphEnabled, sgAgents, sgAgentDetail, sgRecentMatches,
+  subgraphEnabled, sgAgents, sgAgentDetail, sgRecentMatches, sgMatchMoves,
   type AgentDetail, type MatchRow,
 } from "./subgraph";
-import type { Agent, Hex } from "./types";
+import type { Agent, Hex, MoveEntry } from "./types";
 
 export interface AgentDetailResult extends AgentDetail {
   fromSubgraph: boolean;
@@ -59,4 +59,27 @@ export async function loadRecentMatches(limit = 8): Promise<MatchRow[]> {
     console.warn("[data] subgraph recentMatches failed:", e);
     return [];
   }
+}
+
+/**
+ * The move log for one match. Prefer the subgraph — it has the full transcript
+ * for a match of any age, where the RPC log-scan only reaches a short window
+ * back from head (so it silently returns nothing for a replay more than a couple
+ * minutes old). Fall back to `rpcFallback` when the subgraph is disabled, errors,
+ * or has no moves yet (e.g. a match opened seconds ago, not yet indexed).
+ */
+export async function loadMatchMoves(
+  matchId: bigint,
+  rpcFallback: () => Promise<MoveEntry[]>,
+): Promise<MoveEntry[]> {
+  if (subgraphEnabled) {
+    try {
+      const moves = await sgMatchMoves(matchId);
+      if (moves.length > 0) return moves;
+      // empty → not indexed yet (brand-new match) → try RPC for the live tail.
+    } catch (e) {
+      console.warn("[data] subgraph matchMoves failed, falling back to RPC:", e);
+    }
+  }
+  return rpcFallback();
 }
