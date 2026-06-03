@@ -3,8 +3,11 @@ import { useEffect, useState } from "react";
 import { fetchSchedulerStats, fetchTreasurySeasonFund, fetchArenaNextMatchId } from "../chain/reads";
 import { formatStt } from "../lib/format";
 import { BazaarMark } from "../sigils/BazaarMark";
+import { useGlossary } from "./onboarding/GlossaryContext";
+import { GlossaryPanel } from "./onboarding/GlossaryPanel";
+import { WelcomeModal } from "./onboarding/WelcomeModal";
 
-function NavItem({ to, label, glyph }: { to: string; label: string; glyph: string }) {
+function NavItem({ to, label, glyph, hint }: { to: string; label: string; glyph: string; hint: string }) {
   return (
     <NavLink
       to={to}
@@ -15,7 +18,7 @@ function NavItem({ to, label, glyph }: { to: string; label: string; glyph: strin
           ? "bg-bg-panel-raised text-accent"
           : "text-text-secondary hover:bg-bg-panel hover:text-text-primary")
       }
-      title={label}
+      title={hint}
     >
       <span className="text-lg leading-none font-display">{glyph}</span>
       <span className="label-xs mt-1">{label}</span>
@@ -25,6 +28,7 @@ function NavItem({ to, label, glyph }: { to: string; label: string; glyph: strin
 
 export default function AppShell() {
   const [stats, setStats] = useState<{ matches: bigint; season: bigint; sched: bigint } | null>(null);
+  const { openGlossary, openWelcome } = useGlossary();
 
   useEffect(() => {
     let cancelled = false;
@@ -52,32 +56,45 @@ export default function AppShell() {
             <BazaarMark size={22} />
             Bazaar<span className="text-accent">.</span>
           </span>
-          <span className="label-sm">autonomous on-chain agent marketplace</span>
+          <span className="label-sm hidden md:inline">where AI traders bid against each other</span>
         </div>
         <div className="flex items-center gap-6 label-sm">
-          <span className="flex items-center gap-2">
+          <span className="flex items-center gap-2" title="A practice blockchain — tokens are free and nothing costs real money.">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot" />
-            shannon testnet · chain 50312
+            practice network · free tokens
           </span>
           {stats && (
             <>
-              <span>matches <span className="text-text-primary">{stats.matches.toString()}</span></span>
-              <span>scheduler <span className="text-text-primary">{stats.sched.toString()}</span></span>
-              <span>season fund <span className="text-text-primary">{formatStt(stats.season)}</span></span>
+              <span className="hidden lg:inline">matches <span className="text-text-primary">{stats.matches.toString()}</span></span>
+              <span className="hidden lg:inline">prize pool <span className="text-text-primary">{formatStt(stats.season)}</span></span>
             </>
           )}
+          <button
+            onClick={openWelcome}
+            className="hover:text-accent transition-colors"
+            title="What is Bazaar?"
+          >
+            what is this?
+          </button>
+          <button
+            onClick={() => openGlossary()}
+            className="px-2 py-1 border border-border-subtle rounded-sm hover:border-accent hover:text-accent transition-colors"
+            title="Plain-English glossary"
+          >
+            ? help
+          </button>
         </div>
       </header>
 
       <div className="flex-1 flex">
         {/* Left rail */}
         <nav className="w-16 bg-bg-panel border-r border-border-subtle flex flex-col items-center py-2">
-          <NavItem to="/"        label="HUB"   glyph="●" />
-          <NavItem to="/live"    label="LIVE"  glyph="▶" />
-          <NavItem to="/run"     label="RUN"   glyph="✦" />
-          <NavItem to="/ladder"  label="LDR"   glyph="♛" />
-          <NavItem to="/agents"  label="AGNT"  glyph="◈" />
-          <NavItem to="/mint"    label="MINT"  glyph="+" />
+          <NavItem to="/"        label="HOME"  glyph="●" hint="Home — what's happening now" />
+          <NavItem to="/live"    label="WATCH" glyph="▶" hint="Watch the live match" />
+          <NavItem to="/run"     label="PLAY"  glyph="✦" hint="Start a match yourself" />
+          <NavItem to="/ladder"  label="RANKS" glyph="♛" hint="Leaderboard — agents ranked by skill" />
+          <NavItem to="/agents"  label="AGENTS" glyph="◈" hint="Browse all agents" />
+          <NavItem to="/mint"    label="CREATE" glyph="+" hint="Create your own agent" />
         </nav>
 
         {/* Main */}
@@ -85,6 +102,10 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* Global onboarding overlays — first-visit explainer + plain-English glossary */}
+      <WelcomeModal />
+      <GlossaryPanel />
     </div>
   );
 }

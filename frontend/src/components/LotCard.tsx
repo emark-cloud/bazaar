@@ -38,13 +38,13 @@ export function LotCard({ lot, index, agentNameById }: {
     <div className="panel p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-text-dim text-xs">lot {index + 1}</span>
+          <span className="font-mono text-text-dim text-xs">item {index + 1}</span>
           <span className="font-display">{lot.category}</span>
         </div>
         <span className="label-xs">{lot.valueHint}</span>
       </div>
       <div className="mt-2 flex items-center justify-between [perspective:600px]">
-        <span className="label-sm">real-world value</span>
+        <span className="label-sm" title="The item's true value, hidden until the match ends — pulled from live real-world data.">true value</span>
         <span className="font-mono">
           {lot.revealed ? (
             <span
@@ -54,7 +54,7 @@ export function LotCard({ lot, index, agentNameById }: {
               {counted.toString()}
             </span>
           ) : (
-            <span className="text-text-dim">⌛ sealed</span>
+            <span className="text-text-dim">⌛ hidden</span>
           )}
         </span>
       </div>
@@ -88,13 +88,13 @@ export function LotCard({ lot, index, agentNameById }: {
           </>
         ) : standing ? (
           <>
-            <span className="label-sm">standing</span>
+            <span className="label-sm">top bid</span>
             <span className="font-mono text-text-secondary">
               {lot.standingOfferPrice.toString()} ← {agentNameById(lot.standingOfferBy)}
             </span>
           </>
         ) : (
-          <span className="label-sm text-text-dim">open</span>
+          <span className="label-sm text-text-dim">no bids yet</span>
         )}
       </div>
     </div>

@@ -5,6 +5,7 @@ import { LiveMatchPreview } from "../components/LiveMatchPreview";
 import { HowItWorks } from "../components/HowItWorks";
 import { ArenaControlCard } from "../components/ArenaControlCard";
 import { fetchSchedulerStats, fetchTreasurySeasonFund } from "../chain/reads";
+import { Term } from "../components/onboarding/Term";
 import { formatStt } from "../lib/format";
 import { findLatestMatchId } from "../chain/events";
 import { loadRecentMatches } from "../chain/data";
@@ -62,12 +63,12 @@ export default function Hub() {
         <div className="relative flex items-center gap-2.5 label-sm">
           <span className={`flex items-center gap-2 ${status === "live" ? "text-accent" : status === "replay" ? "text-value-up" : "text-text-dim"}`}>
             <span className={`inline-block w-1.5 h-1.5 rounded-full ${status === "live" ? "bg-accent animate-live-dot" : status === "replay" ? "bg-value-up" : "bg-text-dim"}`} />
-            {status === "live" ? "live now" : status === "replay" ? "latest match · replay" : "idle"}
+            {status === "live" ? "live now" : status === "replay" ? "last match · replay" : "no match yet"}
           </span>
           <span className="text-text-dim">·</span>
-          <span>{latestMatch ? `match #${latestMatch.toString()}` : "no matches yet"}</span>
+          <span>{latestMatch ? `match #${latestMatch.toString()}` : "starting soon"}</span>
           <span className="text-text-dim">·</span>
-          <span className="text-text-dim">shannon testnet</span>
+          <span className="text-text-dim">practice network</span>
         </div>
 
         <h1 className="relative font-display mt-3.5 text-[40px] leading-[1.08] tracking-[-0.02em] text-text-primary">
@@ -76,21 +77,24 @@ export default function Hub() {
           ) : status === "none" ? (
             <>The arena is<br />warming up<span className="text-accent">.</span></>
           ) : (
-            <>Four agents are<br />negotiating right now<span className="text-accent">.</span></>
+            <>Four AI traders are<br />bidding right now<span className="text-accent">.</span></>
           )}
         </h1>
 
         <p className="relative mt-3.5 text-text-secondary text-sm max-w-[60ch] leading-relaxed">
-          AI agents owned by smart contracts auction over lots whose true worth is set by live
-          real-world data. The auctioneer, escrow, and audit all run on-chain — every move is a
-          consensus-verified LLM call. No human in the loop.
+          Four <Term slug="agent">AI traders</Term> bid against each other to buy{" "}
+          <Term slug="lot">items</Term> whose real value is{" "}
+          <Term slug="sealed">hidden</Term> until the end — set by live real-world data. No company
+          runs it: <Term slug="smart-contract">a program on the network</Term> is the auctioneer,
+          the bank, and the referee, and every move is{" "}
+          <Term slug="consensus">checked by the network</Term>. No humans play.
         </p>
 
         {latestMatch ? (
           <LiveMatchPreview matchId={latestMatch} onEnter={() => nav(`/live/${latestMatch.toString()}`)} />
         ) : (
-          <div className="relative mt-5 panel-raised p-6 text-center label-sm text-text-dim">
-            no match on-chain yet — the scheduler seats the next one automatically.
+          <div className="relative mt-5 panel-raised p-6 text-center label-sm text-text-dim normal-case tracking-normal">
+            No match running yet — the <Term slug="scheduler">match-maker</Term> will start the next one automatically.
           </div>
         )}
 
@@ -103,7 +107,7 @@ export default function Hub() {
             ▶&nbsp;&nbsp;{status === "replay" ? "WATCH REPLAY" : status === "none" ? "OPEN LIVE BOARD" : "ENTER LIVE MATCH"}
           </Link>
           <span className="font-mono text-xs text-text-secondary tracking-[.02em] lowercase">
-            full board · transcript · one-click chain trace
+            full board · play-by-play · see every move verified
           </span>
         </div>
 
@@ -127,9 +131,9 @@ export default function Hub() {
         )}
 
         <div className="relative mt-5 grid grid-cols-3 gap-3 text-left">
-          <Stat label="matches scheduled" value={stats?.scheduled.toString() ?? "—"} />
-          <Stat label="reactive callbacks" value={stats?.callbacks.toString() ?? "—"} />
-          <Stat label="season fund" value={stats ? formatStt(stats.season) : "—"} accent />
+          <Stat label="matches auto-run" value={stats?.scheduled.toString() ?? "—"} />
+          <Stat label="automated actions" value={stats?.callbacks.toString() ?? "—"} />
+          <Stat label="season prize fund" value={stats ? formatStt(stats.season) : "—"} accent />
         </div>
       </section>
 
@@ -138,22 +142,22 @@ export default function Hub() {
         <ArenaControlCard />
         <section className="panel p-4 flex-1 min-h-0 overflow-hidden">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-display text-lg">Ladder</h3>
+            <h3 className="font-display text-lg">Leaderboard</h3>
             <Link to="/ladder" className="label-sm hover:text-accent">view all →</Link>
           </div>
           <MiniLadder limit={6} />
         </section>
         <section className="panel p-4">
-          <h3 className="font-display text-lg">Mint an Agent</h3>
+          <h3 className="font-display text-lg">Create an Agent</h3>
           <p className="text-text-secondary text-sm mt-2">
-            Put your own agent on the ladder. Write a strategy prompt, stake STT, and let the
-            scheduler seat you into the next match.
+            Build your own <Term slug="agent">AI trader</Term>. Give it a name and a strategy, and
+            the <Term slug="scheduler">match-maker</Term> seats it into matches automatically.
           </p>
           <Link
             to="/mint"
             className="mt-3 inline-block px-3 py-1.5 border border-accent text-accent rounded-sm hover:bg-accent hover:text-bg-base"
           >
-            Start mint flow →
+            Create an agent →
           </Link>
         </section>
       </aside>

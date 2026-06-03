@@ -4,6 +4,7 @@ import { loadAgentDetail, type AgentDetailResult } from "../chain/data";
 import { SigilTile } from "../components/SigilTile";
 import { EloSparkline } from "../components/EloSparkline";
 import { PERSONA_LABEL, nameToPersona, personaColorOf } from "../sigils/personas";
+import { Term } from "../components/onboarding/Term";
 import { shortAddr, shortHex, formatStt } from "../lib/format";
 import { MATCH_KIND } from "../chain/types";
 
@@ -51,7 +52,7 @@ export default function AgentProfile() {
           </div>
           <div className="label-sm mt-1.5 flex gap-4 flex-wrap">
             <span>owner <span className="font-mono text-text-primary">{shortAddr(owner)}</span></span>
-            <span>prompt hash <span className="font-mono text-text-primary">{shortHex(agent.promptHash, 8)}</span></span>
+            <span title="A unique fingerprint of this agent's strategy text — proves it hasn't been changed.">strategy id <span className="font-mono text-text-primary">{shortHex(agent.promptHash, 8)}</span></span>
           </div>
           {agent.promptURI && (
             <div className="mt-2">
@@ -59,12 +60,12 @@ export default function AgentProfile() {
                 href={agent.promptURI}
                 target="_blank" rel="noreferrer noopener"
                 className="text-accent hover:underline label-sm"
-              >view strategy DNA ↗</a>
+              >view full strategy ↗</a>
             </div>
           )}
         </div>
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-right font-mono">
-          <Stat label="elo" value={agent.elo.toString()} accent />
+          <Stat label="rating" value={agent.elo.toString()} accent />
           <Stat label="matches" value={agent.matches.toString()} />
           <Stat label="wins" value={agent.wins.toString()} />
           <Stat label="win rate" value={`${winRate}%`} />
@@ -76,7 +77,7 @@ export default function AgentProfile() {
         {/* Dossier: ELO trajectory + recent matches */}
         <div className="panel p-4 grid grid-cols-2 gap-5">
           <div>
-            <div className="label-sm mb-2">elo trajectory</div>
+            <div className="label-sm mb-2"><Term slug="elo">rating</Term> over time</div>
             <EloSparkline track={eloTrack} color={pColor} />
             <div className="flex items-center justify-between label-xs mt-1.5">
               <span>season start <span className="font-mono text-text-secondary">1500</span></span>
@@ -87,16 +88,15 @@ export default function AgentProfile() {
             <div className="flex items-center justify-between mb-2">
               <div className="label-sm">recent matches</div>
               {!fromSubgraph && (
-                <span className="label-xs text-text-dim" title="Set VITE_SUBGRAPH_URL to enable history">
-                  subgraph off
+                <span className="label-xs text-text-dim" title="Set VITE_SUBGRAPH_URL to enable match history">
+                  history off
                 </span>
               )}
             </div>
             {!fromSubgraph ? (
               <p className="text-text-secondary text-[13px]">
-                Match-by-match history comes from the Bazaar subgraph. Set
-                <span className="font-mono"> VITE_SUBGRAPH_URL</span> to surface it; live match
-                state is always on-chain.
+                Past-match history isn't connected right now. A live match always shows in full —
+                this just needs the history service switched on.
               </p>
             ) : history.length === 0 ? (
               <p className="text-text-secondary text-[13px]">No finalized matches yet.</p>
@@ -135,8 +135,9 @@ export default function AgentProfile() {
         <div className="panel p-4">
           <h3 className="font-display text-lg mb-3">Strategy preview</h3>
           <p className="text-text-secondary text-sm">
-            The agent's DNA is the prompt URI above — content-hashed at mint so it can't be silently
-            edited mid-season. Re-staking requires a hash change, on-chain.
+            An agent's strategy is locked in when it's <Term slug="mint">created</Term> —
+            fingerprinted so it can't be quietly changed mid-season. Updating it means publishing a
+            new version, out in the open.
           </p>
           <pre className="mt-3 panel-raised p-3 font-mono text-xs whitespace-pre-wrap break-all text-text-secondary">
 {agent.promptURI || "(no prompt URI set)"}
@@ -147,13 +148,13 @@ export default function AgentProfile() {
       <aside className="col-span-4 panel p-4">
         <h3 className="font-display text-lg mb-2">Status</h3>
         <div className="space-y-2 text-sm">
-          <Row label="joinable">{agent.joinable ? <span className="text-value-up">yes</span> : <span className="text-text-dim">in-match</span>}</Row>
-          <Row label="elo">{agent.elo}</Row>
+          <Row label="available">{agent.joinable ? <span className="text-value-up">yes</span> : <span className="text-text-dim">in a match</span>}</Row>
+          <Row label="rating">{agent.elo}</Row>
           <Row label="wins / matches">{agent.wins} / {agent.matches}</Row>
           <Row label="lifetime earned">{fromSubgraph ? formatStt(lifetimeEarnings) : "—"}</Row>
         </div>
         <div className="mt-4">
-          <Link to="/ladder" className="label-sm text-accent hover:underline">← back to ladder</Link>
+          <Link to="/ladder" className="label-sm text-accent hover:underline">← back to leaderboard</Link>
         </div>
       </aside>
     </div>

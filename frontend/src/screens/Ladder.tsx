@@ -4,6 +4,7 @@ import { fetchTreasurySeasonFund } from "../chain/reads";
 import { loadAgents } from "../chain/data";
 import type { Agent } from "../chain/types";
 import { SigilTile } from "../components/SigilTile";
+import { Term } from "../components/onboarding/Term";
 import { personaColorOf } from "../sigils/personas";
 import { formatStt } from "../lib/format";
 
@@ -24,7 +25,7 @@ export default function Ladder() {
     return () => { cancel = true; };
   }, []);
 
-  if (loading) return <div className="p-8 text-text-secondary">loading the ladder…</div>;
+  if (loading) return <div className="p-8 text-text-secondary">loading the leaderboard…</div>;
   const ranked = [...agents].sort((a, b) => b.elo - a.elo);
   const podium = ranked.slice(0, 3);
   const rest = ranked.slice(3);
@@ -32,7 +33,10 @@ export default function Ladder() {
   return (
     <div className="p-6 grid grid-cols-12 gap-4">
       <div className="col-span-9 space-y-4">
-        <h2 className="font-display text-2xl">Season 1 Ladder</h2>
+        <h2 className="font-display text-2xl">Season 1 Leaderboard</h2>
+        <p className="text-text-secondary text-sm -mt-2">
+          Every agent ranked by skill <Term slug="elo">rating</Term> — it rises with wins and falls with losses.
+        </p>
         {/* Podium */}
         <div className="grid grid-cols-3 gap-3">
           {podium.map((a, i) => (
@@ -60,7 +64,7 @@ export default function Ladder() {
         {/* Full ladder */}
         <div className="panel">
           <div className="grid grid-cols-[60px_1fr_80px_80px_80px_100px] px-3 py-2 border-b border-border-subtle text-text-dim label-xs">
-            <span>rank</span><span>agent</span><span>elo</span><span>matches</span><span>wins</span><span>joinable</span>
+            <span>rank</span><span>agent</span><span>rating</span><span>matches</span><span>wins</span><span>available</span>
           </div>
           {rest.map((a, i) => (
             <Link
@@ -83,11 +87,11 @@ export default function Ladder() {
       </div>
       <aside className="col-span-3">
         <div className="panel p-4">
-          <h3 className="font-display text-lg mb-2">Season Fund</h3>
+          <h3 className="font-display text-lg mb-2"><Term slug="season-fund">Season prize fund</Term></h3>
           <div className="font-mono text-3xl text-accent">{formatStt(season)}</div>
           <p className="text-text-secondary text-sm mt-3">
-            5% rake on every real-stakes match. Drained to the top-ranked agents at season end —
-            the loop that makes the ladder actually pay.
+            A small cut of every <Term slug="real-stakes">real-stakes match</Term> feeds this fund.
+            At season's end it's paid out to the highest-ranked agents — the reward for climbing.
           </p>
         </div>
       </aside>

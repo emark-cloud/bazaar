@@ -58,7 +58,7 @@ export function ArenaControlCard() {
   return (
     <section className="panel p-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-lg">Arena control</h3>
+        <h3 className="font-display text-lg">Start a match</h3>
         <Link to="/run" className="label-sm hover:text-accent">full setup →</Link>
       </div>
 
@@ -67,13 +67,13 @@ export function ArenaControlCard() {
         className={`mt-3 w-full px-3 py-2 rounded-sm border font-display text-sm flex items-center justify-center gap-2 ${
           busyPoke ? "bg-bg-panel-raised border-border-strong text-text-dim cursor-wait"
           : "border-accent text-accent hover:bg-accent hover:text-bg-base"}`}>
-        {!wallet.address ? "Connect Wallet" : busyPoke ? "Advancing…" : "▶ Advance League"}
+        {!wallet.address ? "Connect Wallet" : busyPoke ? "Starting…" : "▶ Start next league match"}
       </button>
       <div className="label-xs mt-1.5 flex items-center justify-between">
-        <span>seats top {sched?.seatCount ?? 4} by ELO</span>
+        <span>top {sched?.seatCount ?? 4} agents by rating</span>
         {gate && <span className={gate.ok ? "text-value-up" : "text-value-down"}>{gate.ok ? "ready" : "needs funds"}</span>}
       </div>
-      <TxLine status={poke.status} note="seated" />
+      <TxLine status={poke.status} note="started" />
 
       {/* quick open a match */}
       <div className="mt-3 pt-3 border-t border-border-subtle">
@@ -100,10 +100,10 @@ export function ArenaControlCard() {
             {!wallet.address ? "Connect" : busyOpen ? "Opening…" : "Open"}
           </button>
         </div>
-        <p className="label-xs mt-1.5 text-text-dim">
-          {type === "realstakes" ? "1 STT/agent · 4 seats · you fund the pot" : "no stakes · you sponsor the operating fee"}
+        <p className="label-xs mt-1.5 text-text-dim normal-case tracking-normal">
+          {type === "realstakes" ? "1 STT/agent · 4 players · you fund the prize pool" : "no stakes · you just cover a small running fee"}
         </p>
-        <TxLine status={open.status} note="match opened" liveLink />
+        <TxLine status={open.status} note="match started" liveLink />
       </div>
     </section>
   );

@@ -11,11 +11,12 @@ export function TraceWaterfall({ move }: { move: MoveEntry }) {
   const receiptUrl = reqStr ? `${RECEIPT_BASE}/${reqStr}` : null;
 
   // Stylized spans — durations are illustrative; the receipt link carries the truth.
+  // Plain-language labels with the precise step name in parentheses for the curious.
   const spans = [
-    { label: "createRequest", start: 0,  width: 8  },
-    { label: "subcommittee exec", start: 8,  width: 56 },
-    { label: "consensus reached", start: 64, width: 12 },
-    { label: "handleMove callback", start: 76, width: 18 },
+    { label: "send request (createRequest)", start: 0,  width: 8  },
+    { label: "validators run the AI (subcommittee exec)", start: 8,  width: 56 },
+    { label: "they agree on the result (consensus)", start: 64, width: 12 },
+    { label: "result applied to the match (callback)", start: 76, width: 18 },
   ];
 
   const total = 100;
@@ -24,10 +25,10 @@ export function TraceWaterfall({ move }: { move: MoveEntry }) {
     <div className="panel mx-2 my-1 p-3 text-xs font-mono">
       <div className="flex items-center justify-between mb-2">
         <div className="text-text-secondary">
-          <span className="text-text-dim">requestId</span> {reqStr ?? "—"}
+          <span className="text-text-dim">request id</span> {reqStr ?? "—"}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-text-dim">subcommittee 3 · Majority · deposit ~0.24 STT</span>
+          <span className="text-text-dim" title="The move was run by 3 of the network's validators, who had to agree by majority vote. The ~0.24 STT fee pays them for the work.">3 validators · majority vote · fee ~0.24 STT</span>
           {receiptUrl && (
             <a
               href={receiptUrl}
@@ -63,7 +64,7 @@ export function TraceWaterfall({ move }: { move: MoveEntry }) {
       )}
       {move.kind === "DEFAULTED" && (
         <div className="mt-2 text-status-timeout text-[11px]">
-          defaulted: <span className="text-text-primary">{move.reason}</span>
+          failed: <span className="text-text-primary">{move.reason}</span>
         </div>
       )}
     </div>

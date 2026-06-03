@@ -6,6 +6,7 @@ import { CONTRACTS } from "../chain/config";
 import { AGENT_REGISTRY_ABI } from "../chain/abis";
 import { publicClient } from "../chain/client";
 import { useInjectedWallet } from "../chain/wallet";
+import { Term } from "../components/onboarding/Term";
 import { shortAddr } from "../lib/format";
 
 const TEMPLATES: Record<Persona, string> = {
@@ -119,16 +120,17 @@ export default function Mint() {
   const buttonLabel = !wallet.address
     ? (wallet.connecting ? "Connecting…" : "Connect Wallet")
     : status.kind === "signing" ? "Confirm in wallet…"
-    : status.kind === "pending" ? "Minting…"
-    : "Mint Agent";
+    : status.kind === "pending" ? "Creating…"
+    : "Create Agent";
 
   return (
     <div className="p-6 grid grid-cols-12 gap-4">
       <section className="col-span-8 panel p-5">
-        <h2 className="font-display text-2xl">Mint an Agent</h2>
+        <h2 className="font-display text-2xl">Create an Agent</h2>
         <p className="text-text-secondary text-sm mt-1 max-w-prose">
-          Pick a persona, name it, write its strategy prompt. The prompt content is hashed and
-          pinned to the NFT — its DNA, public and immutable.
+          Pick a starting style, name it, and write its strategy in plain words. When you{" "}
+          <Term slug="mint">create</Term> the agent, that strategy is locked in — public, and
+          impossible to secretly change later. You own it.
         </p>
 
         <div className="mt-5 space-y-4">
@@ -144,7 +146,7 @@ export default function Mint() {
           </label>
 
           <div>
-            <span className="label-sm">starting persona</span>
+            <span className="label-sm">starting style</span>
             <div className="mt-1 grid grid-cols-5 gap-2">
               {(Object.keys(TEMPLATES) as Persona[]).map((p) => {
                 const pColor = personaColorOf(PERSONA_LABEL[p]);
@@ -176,15 +178,15 @@ export default function Mint() {
           </div>
 
           <label className="block">
-            <span className="label-sm">strategy prompt</span>
+            <span className="label-sm">strategy <span className="text-text-dim">— tell it how to play, in plain words</span></span>
             <textarea
               value={prompt}
               rows={6}
               onChange={(e) => { setPrompt(e.target.value); setEditCount((n) => n + 1); }}
               className="mt-1 w-full bg-bg-base border border-border-subtle px-3 py-2 rounded-sm font-mono text-sm focus:outline-none focus:border-accent"
             />
-            <div className="label-xs mt-1">
-              hash <span className="font-mono text-text-secondary">{promptHash}</span>
+            <div className="label-xs mt-1" title="A unique fingerprint of your strategy text. It proves the strategy can't be quietly edited after you create the agent.">
+              fingerprint <span className="font-mono text-text-secondary">{promptHash}</span>
             </div>
           </label>
 
@@ -210,7 +212,7 @@ export default function Mint() {
 
             {!wallet.hasProvider && (
               <p className="text-status-timeout text-xs mt-2">
-                No injected wallet detected. Install MetaMask, or mint via the CLI below.
+                No crypto wallet found. Install MetaMask, or create an agent from the command line below.
               </p>
             )}
             {status.kind === "error" && (
@@ -222,7 +224,7 @@ export default function Mint() {
             {(status.kind === "pending" || status.kind === "done") && (
               <p className="text-xs mt-2">
                 <span className={status.kind === "done" ? "text-value-up" : "text-status-pending"}>
-                  {status.kind === "done" ? "✓ minted" : "⌛ pending"}
+                  {status.kind === "done" ? "✓ created" : "⌛ pending"}
                 </span>{" "}
                 <a
                   href={`${EXPLORER_TX}/${status.hash}`}
@@ -233,17 +235,18 @@ export default function Mint() {
                   {status.hash.slice(0, 12)}…
                 </a>
                 {status.kind === "done" && (
-                  <span className="text-text-secondary"> — your agent is now joinable by the LeagueScheduler.</span>
+                  <span className="text-text-secondary"> — your agent is ready. The match-maker can now seat it into matches.</span>
                 )}
               </p>
             )}
 
             <p className="text-text-dim text-xs mt-3">
-              Minting registers the ERC-721; the 25 STT entry stake is escrowed by the Treasury
-              when the scheduler seats your agent into a match.
+              Creating your agent registers it as a collectible you own. A 25 STT entry is{" "}
+              <Term slug="escrow">held safely</Term> by the program when the{" "}
+              <Term slug="scheduler">match-maker</Term> seats it into a match.
             </p>
             <p className="text-text-secondary text-xs mt-2">
-              Prefer the CLI? Mint via the contracts directly:
+              Prefer the command line? Create it directly:
               <br />
               <span className="font-mono text-text-primary">
                 cast send {CONTRACTS.agentRegistry} "mint(address,bytes32,string,string)" $YOU {promptHash.slice(0, 10)}… {promptURI} "{name}"
@@ -275,18 +278,18 @@ export default function Mint() {
           <div className="relative min-w-0">
             <div className="font-display text-lg truncate">{name || "(unnamed)"}</div>
             <div className="label-sm" style={{ color: personaColor }}>{PERSONA_LABEL[persona]}</div>
-            <div className="label-xs mt-1 text-text-dim">starts at elo 1500</div>
+            <div className="label-xs mt-1 text-text-dim">starts at rating 1500</div>
           </div>
         </div>
 
         <div className="mt-3.5 pt-3.5 border-t border-border-subtle">
-          <span className="label-xs">projected play style</span>
+          <span className="label-xs">how it'll play</span>
           <p className="text-text-secondary text-[13px] mt-1.5 leading-relaxed">{PERSONA_TRAIT[persona]}</p>
         </div>
 
         <p className="text-text-secondary text-sm mt-3.5">
-          Newly minted agents are automatically eligible for the next match seated by the
-          on-chain LeagueScheduler.
+          New agents are automatically eligible for the next match the{" "}
+          <Term slug="scheduler">match-maker</Term> starts.
         </p>
       </aside>
     </div>

@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { GlossaryProvider } from "./components/onboarding/GlossaryContext";
 import AppShell from "./components/AppShell";
 import Hub from "./screens/Hub";
 import LiveMatch from "./screens/LiveMatch";
@@ -10,6 +11,7 @@ import Run from "./screens/Run";
 
 export default function App() {
   return (
+    <GlossaryProvider>
     <Routes>
       <Route element={<AppShell />}>
         <Route path="/" element={<Hub />} />
@@ -23,5 +25,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </GlossaryProvider>
   );
 }

@@ -8,6 +8,7 @@ import {
 } from "../chain/writes";
 import { useInjectedWallet } from "../chain/wallet";
 import { SigilTile } from "../components/SigilTile";
+import { Term } from "../components/onboarding/Term";
 import { personaColorOf } from "../sigils/personas";
 import { formatStt, shortAddr } from "../lib/format";
 import type { Agent } from "../chain/types";
@@ -92,8 +93,8 @@ export default function Run() {
           )}
         </div>
         <p className="text-text-secondary text-sm mt-1 max-w-prose">
-          Seat agents, pick the length, and open a match on-chain from your wallet. The board runs
-          itself from there — pricing, negotiation, settlement.
+          Pick the AI traders, choose how long it runs, and start a match from your wallet. From
+          there it plays itself — pricing the items, the bidding, and the payout.
         </p>
 
         {/* type toggle */}
@@ -107,10 +108,10 @@ export default function Run() {
               </button>
             ))}
           </div>
-          <p className="label-xs mt-1.5 text-text-dim">
+          <p className="label-xs mt-1.5 text-text-dim normal-case tracking-normal">
             {type === "exhibition"
-              ? "no pot — you sponsor only the operating fee (mostly rebated to the Arena)."
-              : "your wallet funds the pot; it pays out to the agents' owners at settlement."}
+              ? "No prizes — you just cover a small running fee (mostly refunded). Good for watching the game."
+              : "Your wallet funds the prize pool; it pays out to the winning agents' owners at the end."}
           </p>
         </div>
 
@@ -137,7 +138,7 @@ export default function Run() {
 
         {/* agent multiselect */}
         <div className="mt-4">
-          <span className="label-sm">agents <span className="text-text-dim">— pick 2–8 joinable</span></span>
+          <span className="label-sm">agents <span className="text-text-dim">— pick 2–8 that are free</span></span>
           <div className="mt-1 grid grid-cols-3 gap-2">
             {agents.map((a) => {
               const k = a.id.toString();
@@ -161,7 +162,7 @@ export default function Run() {
 
         {/* lots (default feeds) */}
         <div className="mt-4">
-          <span className="label-sm">lots <span className="text-text-dim">— default feeds</span></span>
+          <span className="label-sm">items <span className="text-text-dim">— live data feeds</span></span>
           <div className="mt-1 flex gap-2 flex-wrap">
             {DEFAULT_LOTS.map((l) => (
               <span key={l.category} className="panel-raised px-2.5 py-1 font-mono text-xs">
@@ -185,24 +186,27 @@ export default function Run() {
           </button>
           <span className="label-xs text-text-secondary">
             you’ll send <span className="font-mono text-text-primary">~{formatStt(value)}</span>
-            {type === "realstakes" && <span className="text-text-dim"> (pot {formatStt(entryWei * BigInt(seats))} + ops)</span>}
+            {type === "realstakes" && <span className="text-text-dim"> (prize pool {formatStt(entryWei * BigInt(seats))} + fees)</span>}
           </span>
         </div>
-        <TxLine status={open.status} doneNote="match opened" liveLink />
-        {!wallet.hasProvider && <p className="text-status-timeout text-xs mt-2">No injected wallet detected — install MetaMask.</p>}
+        <TxLine status={open.status} doneNote="match started" liveLink />
+        {!wallet.hasProvider && <p className="text-status-timeout text-xs mt-2">No crypto wallet found — install MetaMask to start a match.</p>}
       </section>
 
       {/* ADVANCE LEAGUE */}
       <aside className="col-span-4 panel p-4 self-start">
-        <h3 className="font-display text-lg">Advance the league</h3>
+        <h3 className="font-display text-lg">Start the next league match</h3>
         <p className="text-text-secondary text-sm mt-1.5">
-          One click seats the top-{sched?.seatCount ?? 4} joinable agents by ELO into the next
-          real-stakes match. The scheduler funds the pot — you only pay gas.
+          One click starts the next <Term slug="real-stakes">real-stakes match</Term> with the
+          top-{sched?.seatCount ?? 4} agents by <Term slug="elo">rating</Term>. The{" "}
+          <Term slug="scheduler">match-maker</Term> funds the{" "}
+          <Term slug="pot">prize pool</Term> — you only pay the tiny{" "}
+          <Term slug="gas">network fee</Term>.
         </p>
         {sched && (
           <div className="mt-3 panel-raised p-3 space-y-1.5 text-xs font-mono">
-            <Row k="scheduler balance" v={formatStt(sched.balance)} />
-            <Row k="stake / match" v={`${formatStt(sched.entryStake)} × ${sched.seatCount}`} />
+            <Row k="match-maker balance" v={formatStt(sched.balance)} />
+            <Row k="entry / match" v={`${formatStt(sched.entryStake)} × ${sched.seatCount}`} />
             <Row k="rounds" v={`${sched.rounds}`} />
             {gate && <Row k="status" v={gate.ok ? "ready" : `needs ${formatStt(gate.required)}`} accent={gate.ok} warn={!gate.ok} />}
           </div>
@@ -214,14 +218,15 @@ export default function Run() {
               : "border-accent text-accent hover:bg-accent hover:text-bg-base"}`}>
           {!wallet.address ? "Connect Wallet"
             : poke.status.kind === "signing" ? "Confirm in wallet…"
-            : poke.status.kind === "pending" ? "Advancing…" : "▶ Advance League"}
+            : poke.status.kind === "pending" ? "Starting…" : "▶ Start next match"}
         </button>
-        <TxLine status={poke.status} doneNote="next match seated" liveLink />
+        <TxLine status={poke.status} doneNote="next match started" liveLink />
         <p className="text-text-dim text-xs mt-3">
-          Tip: the scheduler reserves 32 STT for reactivity, so it needs ≥ stake×seats + 32 STT to
-          open. For minimal-STT matches use the form on the left instead.
+          Heads up: the match-maker keeps 32 STT in reserve to run itself, so it needs at least
+          (entry × players) + 32 STT before it can start. To run a cheaper match, use the form on
+          the left.
         </p>
-        <Link to="/" className="label-sm hover:text-accent mt-3 inline-block">← back to hub</Link>
+        <Link to="/" className="label-sm hover:text-accent mt-3 inline-block">← back to home</Link>
       </aside>
     </div>
   );

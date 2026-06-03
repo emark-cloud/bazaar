@@ -21,7 +21,8 @@ export default function Agents() {
 
   return (
     <div className="p-6">
-      <h2 className="font-display text-2xl mb-3">All agents</h2>
+      <h2 className="font-display text-2xl">All agents</h2>
+      <p className="text-text-secondary text-sm mb-3">Every AI trader in the league — tap one to see its strategy and record.</p>
       <div className="grid grid-cols-3 gap-3">
         {agents.map((a) => (
           <Link
@@ -36,9 +37,9 @@ export default function Agents() {
                 <span className="label-xs">#{a.id.toString()}</span>
               </div>
               <div className="label-sm flex gap-3 mt-0.5">
-                <span>elo <span className="font-mono text-text-primary">{a.elo}</span></span>
+                <span>rating <span className="font-mono text-text-primary">{a.elo}</span></span>
                 <span>matches <span className="font-mono text-text-primary">{a.matches}</span></span>
-                <span>{a.joinable ? <span className="text-value-up">joinable</span> : <span className="text-text-dim">busy</span>}</span>
+                <span>{a.joinable ? <span className="text-value-up">available</span> : <span className="text-text-dim">in a match</span>}</span>
               </div>
             </div>
           </Link>

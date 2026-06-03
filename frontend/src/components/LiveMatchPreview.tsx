@@ -128,7 +128,7 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
         <div className="flex items-center justify-between label-xs">
           <span className="flex items-center gap-2 text-accent">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot" />
-            negotiation · {isLive ? "live" : "replay"}
+            bidding · {isLive ? "live" : "replay"}
           </span>
           <span className="text-text-dim">round {state.currentRound}/{state.rounds}</span>
         </div>
@@ -145,8 +145,8 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
             />
           ))}
         </div>
-        <div className="mt-auto pt-2 label-xs text-text-dim border-t border-border-subtle/60">
-          ⛓ each move is a consensus-verified on-chain LLM call
+        <div className="mt-auto pt-2 label-xs text-text-dim border-t border-border-subtle/60 normal-case tracking-normal">
+          ⛓ every move is made by AI and verified by the network
         </div>
       </div>
 
@@ -162,7 +162,7 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
             >
               <span className="label-xs text-text-secondary truncate">{l.category || `lot ${i + 1}`}</span>
               <span className={`font-mono text-[11px] whitespace-nowrap ${sold ? "text-value-up" : "text-text-dim"}`}>
-                {sold ? "✓ sold" : "⌛ sealed"}
+                {sold ? "✓ sold" : "⌛ hidden"}
               </span>
             </div>
           );
@@ -176,12 +176,12 @@ function TickerLine({ move, name, opacity }: { move: MoveEntry; name: string; op
   const color = personaColorOf(name);
   const parts = parseTicker(move.raw);
   let phrase: string = move.kind.toLowerCase();
-  if (move.kind === "OFFER")     phrase = `offers ${parts.price ?? "?"} STT · lot ${parts.lot ?? "?"}`;
-  if (move.kind === "COUNTER")   phrase = `counters ${parts.price ?? "?"} · lot ${parts.lot ?? "?"}`;
-  if (move.kind === "COALITION") phrase = `coalition w/ agent ${parts.partner ?? "?"}`;
+  if (move.kind === "OFFER")     phrase = `offers ${parts.price ?? "?"} STT · item ${parts.lot ?? "?"}`;
+  if (move.kind === "COUNTER")   phrase = `counters ${parts.price ?? "?"} · item ${parts.lot ?? "?"}`;
+  if (move.kind === "COALITION") phrase = `team-up w/ agent ${parts.partner ?? "?"}`;
   if (move.kind === "PASS")      phrase = "passes";
   if (move.kind === "REJECTED")  phrase = "rejected";
-  if (move.kind === "DEFAULTED") phrase = "defaulted";
+  if (move.kind === "DEFAULTED") phrase = "failed";
   const fail = move.kind === "REJECTED" || move.kind === "DEFAULTED";
 
   return (

@@ -19,7 +19,7 @@ export function MiniLadder({ limit = 5 }: { limit?: number }) {
     return () => { cancel = true; clearInterval(id); };
   }, []);
 
-  if (!agents) return <div className="label-sm">loading ladder…</div>;
+  if (!agents) return <div className="label-sm">loading leaderboard…</div>;
   const ranked = [...agents].sort((a, b) => b.elo - a.elo).slice(0, limit);
 
   return (

@@ -40,11 +40,11 @@ export function NegotiationStream({
           <button
             onClick={() => setView("transcript")}
             className={`px-3 py-1 ${view === "transcript" ? "bg-bg-panel-raised text-accent" : "text-text-secondary hover:text-text-primary"}`}
-          >transcript</button>
+          >play-by-play</button>
           <button
             onClick={() => setView("orderbook")}
             className={`px-3 py-1 ${view === "orderbook" ? "bg-bg-panel-raised text-accent" : "text-text-secondary hover:text-text-primary"}`}
-          >order book</button>
+          >bid table</button>
         </div>
       </header>
       <div ref={bodyRef} className="flex-1 overflow-y-auto p-3 space-y-1.5">
@@ -66,7 +66,7 @@ export function NegotiationStream({
         {view === "orderbook" && (
           <div className="font-mono text-xs">
             <div className="grid grid-cols-[40px_1fr_120px_60px_80px] text-text-dim uppercase tracking-wider px-2 py-1 border-b border-border-subtle">
-              <span>r·t</span><span>agent</span><span>action</span><span>lot</span><span>price</span>
+              <span>r·t</span><span>agent</span><span>action</span><span>item</span><span>price</span>
             </div>
             {moves.map((m, i) => {
               const parts = parseMove(m.raw);
@@ -102,12 +102,12 @@ function TranscriptLine({
   const parts = parseMove(move.raw);
 
   let phrase = move.raw;
-  if (move.kind === "OFFER")     phrase = `offers ${parts.price ?? "?"} STT for lot ${parts.lot ?? "?"}`;
-  if (move.kind === "COUNTER")   phrase = `counters at ${parts.price ?? "?"} on lot ${parts.lot ?? "?"}`;
-  if (move.kind === "COALITION") phrase = `proposes coalition with agent ${parts.partner ?? "?"} (share ${parts.share ?? "50"})`;
+  if (move.kind === "OFFER")     phrase = `offers ${parts.price ?? "?"} STT for item ${parts.lot ?? "?"}`;
+  if (move.kind === "COUNTER")   phrase = `counters at ${parts.price ?? "?"} on item ${parts.lot ?? "?"}`;
+  if (move.kind === "COALITION") phrase = `proposes a team-up with agent ${parts.partner ?? "?"} (split ${parts.share ?? "50"}/${100 - Number(parts.share ?? "50")})`;
   if (move.kind === "PASS")      phrase = `passes`;
   if (move.kind === "REJECTED")  phrase = `move rejected — ${move.reason ?? "reason"}`;
-  if (move.kind === "DEFAULTED") phrase = `defaulted — ${move.reason ?? "request failed"}`;
+  if (move.kind === "DEFAULTED") phrase = `move failed — ${move.reason ?? "request failed"}`;
 
   const isFail = move.kind === "REJECTED" || move.kind === "DEFAULTED";
 
@@ -144,15 +144,15 @@ function TranscriptLine({
           {move.requestId !== undefined && (
             move.kind === "DEFAULTED" ? (
               <span className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-status-timeout/40 text-status-timeout">
-                <span aria-hidden>⛓</span> on-chain · request failed
+                <span aria-hidden>⛓</span> on the network · move failed
                 <span className="text-text-dim">· req {shortId(move.requestId)}</span>
               </span>
             ) : (
               <span
                 className="inline-flex items-center gap-1 mt-1 font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-value-up/40 text-value-up"
-                title="This move was decided by a Majority vote of a 3-validator subcommittee running the LLM on-chain. Click to see the request trace + receipt."
+                title="This move was decided by AI and confirmed by a 3-of-3 vote of the network's validators — so no one can fake it. Click for the full proof and receipt."
               >
-                <span aria-hidden>⛓</span> consensus&nbsp;✓ · 3 validators
+                <span aria-hidden>⛓</span> verified&nbsp;✓ · 3 validators
                 <span className="text-text-dim">· req {shortId(move.requestId)}</span>
               </span>
             )

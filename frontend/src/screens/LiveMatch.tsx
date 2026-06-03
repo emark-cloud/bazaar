@@ -9,7 +9,8 @@ import { LotCard } from "../components/LotCard";
 import { SigilTile } from "../components/SigilTile";
 import { CountUp } from "../components/CountUp";
 import { personaColorOf } from "../sigils/personas";
-import { MATCH_PHASE, AUDIT_STATUS } from "../chain/types";
+import { Term } from "../components/onboarding/Term";
+import { MATCH_PHASE, MATCH_PHASE_LABEL, AUDIT_STATUS, AUDIT_STATUS_LABEL } from "../chain/types";
 
 interface MatchSnapshot {
   matchId: bigint;
@@ -164,7 +165,8 @@ export default function LiveMatch() {
     return <div className="p-8 text-text-secondary">loading match #{matchId.toString()}…</div>;
   }
 
-  const phaseLabel = MATCH_PHASE[snapshot.phase] ?? "Unknown";
+  const phaseKey = MATCH_PHASE[snapshot.phase];
+  const phaseLabel = (phaseKey && MATCH_PHASE_LABEL[phaseKey]) ?? "Unknown";
   const isLive = snapshot.phase === 1 || snapshot.phase === 2 || snapshot.phase === 3;
   const auditClean = !audit || audit.verdictsSuspect === 0;
   const winnerName = winner?.agent?.name ?? (winner ? `Agent #${winner.id}` : "");
@@ -177,7 +179,7 @@ export default function LiveMatch() {
           <span className="font-display text-lg text-text-primary">Match #{matchId.toString()}</span>
           <span>round <span className="text-text-primary font-mono">{snapshot.currentRound}/{snapshot.rounds}</span></span>
           <span>turn <span className="text-text-primary font-mono">{snapshot.currentTurnIdx + 1}/{snapshot.agentIds.length}</span></span>
-          <span>{snapshot.kind === 1 ? "RealStakes" : "Exhibition"}</span>
+          <span>{snapshot.kind === 1 ? "real stakes" : "exhibition"}</span>
           <span className={isLive ? "text-accent" : settled ? "text-value-up" : "text-text-dim"}>
             {isLive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot mr-1.5" />}
             {settled ? "✓ Final" : phaseLabel}
@@ -186,11 +188,13 @@ export default function LiveMatch() {
         {audit && audit.status !== 0 && (
           <div
             className="label-sm flex items-center gap-2"
-            title="A randomly-selected (Chainlink VRF) panel of agents re-reviews the finished match for collusion. While they deliberate the payout is frozen; a flagged match stays frozen until an appeal window closes."
+            title="A randomly-chosen panel of agents re-reviews the finished match for cheating. While they decide, the payout is frozen; a flagged match stays frozen until it's resolved."
           >
             <span aria-hidden>⚖</span>
-            audit council
-            <span className={audit.verdictsSuspect > 0 ? "text-value-down" : "text-accent"}>{AUDIT_STATUS[audit.status]}</span>
+            <Term slug="audit">fairness check</Term>
+            <span className={audit.verdictsSuspect > 0 ? "text-value-down" : "text-accent"}>
+              {AUDIT_STATUS_LABEL[AUDIT_STATUS[audit.status]] ?? AUDIT_STATUS[audit.status]}
+            </span>
             {audit.status !== 3 ? (
               <span className="font-mono text-[10px] px-1.5 py-0.5 rounded-sm border border-accent/50 text-accent">payout frozen</span>
             ) : audit.verdictsSuspect > 0 ? (
@@ -215,15 +219,15 @@ export default function LiveMatch() {
         >
           <SigilTile name={winnerName} size={40} state="victory" ring />
           <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-            <span className="label-xs">
-              settlement complete · payout released · audit {auditClean ? "clean" : "suspect"}
+            <span className="label-xs normal-case tracking-normal">
+              match complete · prizes paid out · fairness check {auditClean ? "passed" : "flagged"}
             </span>
             <span className="font-display text-lg">
-              <span style={{ color: personaColorOf(winnerName) }}>{winnerName}</span> takes the pot
+              <span style={{ color: personaColorOf(winnerName) }}>{winnerName}</span> wins the prize pool
             </span>
           </div>
           <div className="flex flex-col items-end gap-0.5">
-            <span className="label-xs">net P&amp;L</span>
+            <span className="label-xs">net profit</span>
             <CountUp
               to={Number(winner.score)}
               prefix={Number(winner.score) > 0 ? "+" : ""}
@@ -280,12 +284,12 @@ export default function LiveMatch() {
       {/* Bottom — move log strip (subset, expandable in transcript above) */}
       <div className="panel px-3 py-2 text-xs font-mono text-text-secondary flex items-center gap-4">
         <span>moves <span className="text-text-primary">{moves.length}</span></span>
-        <span>OFFER <span className="text-text-primary">{moves.filter((m) => m.kind === "OFFER").length}</span></span>
-        <span>COUNTER <span className="text-text-primary">{moves.filter((m) => m.kind === "COUNTER").length}</span></span>
-        <span>COALITION <span className="text-text-primary">{moves.filter((m) => m.kind === "COALITION").length}</span></span>
-        <span>PASS <span className="text-text-primary">{moves.filter((m) => m.kind === "PASS").length}</span></span>
-        <span>REJECTED <span className="text-status-timeout">{moves.filter((m) => m.kind === "REJECTED").length}</span></span>
-        <span>DEFAULTED <span className="text-status-timeout">{moves.filter((m) => m.kind === "DEFAULTED").length}</span></span>
+        <span>offers <span className="text-text-primary">{moves.filter((m) => m.kind === "OFFER").length}</span></span>
+        <span>counters <span className="text-text-primary">{moves.filter((m) => m.kind === "COUNTER").length}</span></span>
+        <span>team-ups <span className="text-text-primary">{moves.filter((m) => m.kind === "COALITION").length}</span></span>
+        <span>passes <span className="text-text-primary">{moves.filter((m) => m.kind === "PASS").length}</span></span>
+        <span>rejected <span className="text-status-timeout">{moves.filter((m) => m.kind === "REJECTED").length}</span></span>
+        <span>failed <span className="text-status-timeout">{moves.filter((m) => m.kind === "DEFAULTED").length}</span></span>
       </div>
     </div>
   );
