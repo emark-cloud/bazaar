@@ -75,11 +75,20 @@ type Move @entity(immutable: false) {
   kind: String!                  # "OFFER"|"COUNTER"|"COALITION"|"PASS"|"REJECTED"|"DEFAULTED"
   raw: String!
   reason: String
-  requestId: BigInt              # the platform requestId — links to PlatformRequest
+  requestId: BigInt              # the platform requestId — links to PlatformRequest + the off-chain receipt
   request: PlatformRequest
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   tx: Bytes!
+}
+
+# Internal lookup that carries the platform requestId from the MoveRequested event
+# (which has it) onto the Move row (created later on MoveMade/Defaulted/Rejected,
+# whose events do NOT re-emit the requestId). Keyed by "<matchId>-<round>-<turnIdx>"
+# so the resolving handler can attach the receipt link. Not queried by the UI.
+type MoveRequestLink @entity(immutable: true) {
+  id: ID!                        # "<matchId>-<round>-<turnIdx>"
+  requestId: BigInt!
 }
 
 # Somnia agent platform request — links each Move to its consensus-verified inference.

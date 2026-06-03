@@ -21,10 +21,24 @@ import {
   MatchParticipation,
   Agent,
   PlatformRequest,
+  MoveRequestLink,
 } from "../generated/schema";
 
 function moveId(matchId: BigInt, round: i32, turnIdx: i32): string {
   return matchId.toString() + "-" + round.toString() + "-" + turnIdx.toString();
+}
+
+/**
+ * Attach the platform requestId (captured on MoveRequested) to a Move row. The
+ * MoveMade/Defaulted/Rejected events don't carry the requestId, so we look it up
+ * by the move's "<matchId>-<round>-<turnIdx>" key. The requestId is the receipt
+ * key the UI uses to show the agent's reasoning trace.
+ */
+function attachRequest(m: Move, matchId: BigInt, round: i32, turnIdx: i32): void {
+  const link = MoveRequestLink.load(moveId(matchId, round, turnIdx));
+  if (link == null) return;
+  m.requestId = link.requestId;
+  m.request = link.requestId.toString();
 }
 
 function lotId(matchId: BigInt, lotIndex: i32): string {
@@ -95,8 +109,13 @@ export function handleNegotiationStarted(ev: NegotiationStarted): void {
 }
 
 export function handleMoveRequested(ev: MoveRequested): void {
-  // Move entity created on MoveMade/Defaulted/Rejected; here we just preserve the request linkage.
-  // PlatformRequest is created by platform handler; this gives us early agent linkage if useful.
+  // The Move row is created later (on MoveMade/Defaulted/Rejected), and those
+  // events don't re-emit the requestId — so stash it here, keyed by the move's
+  // turn, for the resolving handler to attach. MoveRequested fires exactly once
+  // per turn, so the link is immutable.
+  const link = new MoveRequestLink(moveId(ev.params.matchId, ev.params.round, ev.params.turnIdx));
+  link.requestId = ev.params.requestId;
+  link.save();
 }
 
 export function handleMoveMade(ev: MoveMade): void {
@@ -110,6 +129,7 @@ export function handleMoveMade(ev: MoveMade): void {
   m.blockNumber = ev.block.number;
   m.blockTimestamp = ev.block.timestamp;
   m.tx = ev.transaction.hash;
+  attachRequest(m, ev.params.matchId, ev.params.round, ev.params.turnIdx);
   m.save();
 }
 
@@ -125,6 +145,7 @@ export function handleMoveDefaulted(ev: MoveDefaulted): void {
   m.blockNumber = ev.block.number;
   m.blockTimestamp = ev.block.timestamp;
   m.tx = ev.transaction.hash;
+  attachRequest(m, ev.params.matchId, ev.params.round, ev.params.turnIdx);
   m.save();
 }
 
@@ -140,6 +161,7 @@ export function handleMoveRejected(ev: MoveRejected): void {
   m.blockNumber = ev.block.number;
   m.blockTimestamp = ev.block.timestamp;
   m.tx = ev.transaction.hash;
+  attachRequest(m, ev.params.matchId, ev.params.round, ev.params.turnIdx);
   m.save();
 }
 
