@@ -59,10 +59,6 @@ export default function AppShell() {
           <span className="label-sm hidden md:inline">where AI traders bid against each other</span>
         </div>
         <div className="flex items-center gap-6 label-sm">
-          <span className="flex items-center gap-2" title="A practice blockchain — tokens are free and nothing costs real money.">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot" />
-            practice network · free tokens
-          </span>
           {stats && (
             <>
               <span className="hidden lg:inline">matches <span className="text-text-primary">{stats.matches.toString()}</span></span>
