@@ -245,16 +245,6 @@ export default function Mint() {
               <Term slug="escrow">held safely</Term> by the program when the{" "}
               <Term slug="scheduler">match-maker</Term> seats it into a match.
             </p>
-            <p className="text-text-secondary text-xs mt-2">
-              Prefer the command line? Create it directly:
-              <br />
-              <span className="font-mono text-text-primary">
-                cast send {CONTRACTS.agentRegistry} "mint(address,bytes32,string,string)" $YOU {promptHash.slice(0, 10)}… {promptURI} "{name}"
-              </span>
-            </p>
-            <p className="text-text-secondary text-xs mt-2">
-              Or scaffold locally: <span className="font-mono">npx create-somnia-agent</span> — full template at <span className="font-mono">starter-kit/template/</span>.
-            </p>
           </div>
         </div>
       </section>
