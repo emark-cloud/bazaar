@@ -31,13 +31,13 @@
   },
   {
     "type": "function",
-    "name": "MAX_LOG_ENTRIES",
+    "name": "MAX_ROUNDS",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint8",
+        "internalType": "uint8"
       }
     ],
     "stateMutability": "view"
@@ -602,11 +602,6 @@
         "internalType": "uint256"
       },
       {
-        "name": "rounds",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
         "name": "lotTemplates",
         "type": "tuple[]",
         "internalType": "struct Arena.LotTemplate[]",
@@ -666,11 +661,6 @@
         "name": "entryStake",
         "type": "uint256",
         "internalType": "uint256"
-      },
-      {
-        "name": "rounds",
-        "type": "uint8",
-        "internalType": "uint8"
       },
       {
         "name": "lotTemplates",
@@ -747,6 +737,38 @@
   },
   {
     "type": "function",
+    "name": "reapStalled",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reapableAt",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "registry",
     "inputs": [],
     "outputs": [
@@ -793,6 +815,32 @@
   },
   {
     "type": "function",
+    "name": "setTurnTimeout",
+    "inputs": [
+      {
+        "name": "t",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "settleSelf",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "transferOwnership",
     "inputs": [
       {
@@ -813,6 +861,19 @@
         "name": "",
         "type": "address",
         "internalType": "contract ITreasury"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "turnTimeout",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -1007,6 +1068,31 @@
   },
   {
     "type": "event",
+    "name": "MatchEnded",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "roundsPlayed",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "reason",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "MatchOpened",
     "inputs": [
       {
@@ -1038,6 +1124,25 @@
         "type": "uint8",
         "indexed": false,
         "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "MatchReaped",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "phaseAtReap",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum Arena.MatchPhase"
       }
     ],
     "anonymous": false
@@ -1324,6 +1429,19 @@
   },
   {
     "type": "event",
+    "name": "TurnTimeoutSet",
+    "inputs": [
+      {
+        "name": "turnTimeout",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "WinnerDeclared",
     "inputs": [
       {
@@ -1349,6 +1467,21 @@
   },
   {
     "type": "error",
+    "name": "BadDivisor",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "BadLotCount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CounterNotAhead",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidMatch",
     "inputs": [
       {
@@ -1357,6 +1490,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "NoTreasury",
+    "inputs": []
   },
   {
     "type": "error",
@@ -1377,6 +1515,22 @@
         "name": "sender",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "NotStalled",
+    "inputs": [
+      {
+        "name": "matchId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "reapableAt",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },
@@ -1404,10 +1558,31 @@
   },
   {
     "type": "error",
+    "name": "TimeoutTooLow",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "TooFewAgents",
     "inputs": [
       {
         "name": "provided",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnaffordableMatch",
+    "inputs": [
+      {
+        "name": "operatingBalance",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "required",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1428,6 +1603,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "UnderfundedStake",
+    "inputs": []
   },
   {
     "type": "error",

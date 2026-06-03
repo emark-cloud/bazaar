@@ -8,6 +8,7 @@ import {IJsonApiAgent} from "./interfaces/IJsonApiAgent.sol";
 import {Request, Response, ResponseStatus, ConsensusType} from "./interfaces/IAgentPlatform.sol";
 import {AgentRegistry} from "./AgentRegistry.sol";
 import {RulesEngine} from "./lib/RulesEngine.sol";
+import {PromptLib} from "./lib/PromptLib.sol";
 import {ITreasury} from "./interfaces/ITreasury.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -32,6 +33,9 @@ contract Arena is AgentPlatformBase, Ownable {
 
     enum MatchKind { Exhibition, RealStakes }
     enum MatchPhase { None, Pricing, Negotiating, Settling, Finalized, Voided }
+    /// Why a match ended — emitted in MatchEnded for the indexer/UI.
+    /// NoTrade is a draw (nothing sold → voided, refunded, no ELO change).
+    enum EndReason { Cap, Stalled, AllForfeited, Reaped, NoTrade }
 
     /// Input shape for opening a match (caller provides feed config only).
     /// `valueDivisor` maps raw JSON-API value to "lot worth in STT-int" so profit math
@@ -83,15 +87,27 @@ contract Arena is AgentPlatformBase, Ownable {
         uint256   finalizedAt;
         uint256   lastRequestAt;   // block.timestamp of the most recent platform request fired;
                                    // a match with no callback past lastRequestAt+turnTimeout is reapable
+        bool      progressThisRound; // any successful OFFER/COUNTER/COALITION in the current round?
+                                     // a full round with none = market stalled → terminate (draw rules apply)
     }
+
+    /// Hard cap on rounds. Matches normally end earlier on a no-progress round; this is the
+    /// safety ceiling that bounds duration + worst-case operating cost. Not opener-configurable.
+    uint8 public constant MAX_ROUNDS = 10;
 
     uint256 public nextMatchId = 1;
     mapping(uint256 => Match) internal _matches;
     mapping(uint256 => mapping(uint8 => Lot)) internal _lots; // matchId => lotIndex(0-based) => lot
     /// Compact negotiation log: each entry is one move's prompt-friendly summary. Used to give the
     /// LLM the prior move context so agents can react to each other. Capped per match.
+    /// Negotiation log as a fixed-size RING BUFFER per match: holds at most LOG_WINDOW entries,
+    /// overwriting the oldest once full, so an agent always sees the most-recent moves (never a
+    /// stale frozen window) for matches of any length. `_logCount` tracks total entries ever
+    /// pushed, used to find the oldest slot when wrapped.
     mapping(uint256 => string[]) internal _log;
-    uint256 public constant MAX_LOG_ENTRIES = 64;
+    mapping(uint256 => uint256) internal _logCount;
+    /// Ring-buffer capacity = how many recent moves are rendered into a move prompt.
+    uint256 internal constant LOG_WINDOW = 24;
 
     /// pendingRequest context byte layout (we store keccak in pendingRequests, decoded via reqMeta):
     mapping(uint256 => bytes32) internal _reqMatchKey; // requestId => keccak(matchId, kind)
@@ -125,6 +141,9 @@ contract Arena is AgentPlatformBase, Ownable {
     event WinnerDeclared(uint256 indexed matchId, uint256 indexed winnerAgentId, int256 winnerScore);
     event MatchVoided(uint256 indexed matchId, string reason);
     event MatchReaped(uint256 indexed matchId, MatchPhase phaseAtReap);
+    /// Emitted the moment a match terminates, before settlement/void — carries how many rounds
+    /// actually played and why it ended (see EndReason). Lets the UI show "ended: market stalled".
+    event MatchEnded(uint256 indexed matchId, uint8 roundsPlayed, uint8 reason);
 
     error InvalidMatch(uint256 matchId);
     error WrongPhase(uint256 matchId, MatchPhase expected, MatchPhase actual);
@@ -134,7 +153,6 @@ contract Arena is AgentPlatformBase, Ownable {
     error UnaffordableMatch(uint256 operatingBalance, uint256 required);
     // Compact validation errors (4-byte selectors keep Arena under the 24576-byte limit).
     error BadLotCount();
-    error BadRoundCount();
     error NoTreasury();
     error UnderfundedStake();
     error BadDivisor();
@@ -196,23 +214,21 @@ contract Arena is AgentPlatformBase, Ownable {
     function openExhibition(
         uint256[] calldata agentIds,
         uint256 startingBudget,
-        uint8 rounds,
         LotTemplate[] calldata lotTemplates
     ) external payable returns (uint256 matchId) {
         if (agentIds.length < 2 || agentIds.length > 8) revert TooFewAgents(agentIds.length);
         if (lotTemplates.length < 1 || lotTemplates.length > 8) revert BadLotCount();
-        if (rounds < 1 || rounds > 16) revert BadRoundCount();
 
         // Affordability precheck: refuse a match the Arena can't pay every platform call for.
         // For exhibition the whole balance (incl. this msg.value) is operating funds.
-        uint256 need = _worstCaseOpCost(agentIds.length, rounds, uint8(lotTemplates.length));
+        uint256 need = _worstCaseOpCost(agentIds.length, MAX_ROUNDS, uint8(lotTemplates.length));
         if (address(this).balance < need) revert UnaffordableMatch(address(this).balance, need);
 
         matchId = nextMatchId++;
         Match storage m = _matches[matchId];
         m.kind = MatchKind.Exhibition;
         m.phase = MatchPhase.Pricing;
-        m.rounds = rounds;
+        m.rounds = MAX_ROUNDS;
         m.currentRound = 1;
         m.currentTurnIdx = 0;
         m.numLots = uint8(lotTemplates.length);
@@ -226,7 +242,7 @@ contract Arena is AgentPlatformBase, Ownable {
         }
 
         _seedLots(matchId, lotTemplates);
-        emit MatchOpened(matchId, MatchKind.Exhibition, agentIds, rounds, m.numLots);
+        emit MatchOpened(matchId, MatchKind.Exhibition, agentIds, MAX_ROUNDS, m.numLots);
         for (uint8 i = 0; i < m.numLots; i++) {
             _firePricingRequest(matchId, i);
         }
@@ -238,26 +254,24 @@ contract Arena is AgentPlatformBase, Ownable {
     function openRealStakes(
         uint256[] calldata agentIds,
         uint256 entryStake,
-        uint8 rounds,
         LotTemplate[] calldata lotTemplates
     ) external payable returns (uint256 matchId) {
         if (agentIds.length < 2 || agentIds.length > 8) revert TooFewAgents(agentIds.length);
         if (lotTemplates.length < 1 || lotTemplates.length > 8) revert BadLotCount();
-        if (rounds < 1 || rounds > 16) revert BadRoundCount();
         if (address(treasury) == address(0)) revert NoTreasury();
         uint256 expected = entryStake * agentIds.length;
         if (msg.value < expected) revert UnderfundedStake();
 
         // Affordability precheck: the pot (`expected`) is forwarded to Treasury, so only the
         // residual balance is available for platform calls. Refuse if it can't cover the match.
-        uint256 need = _worstCaseOpCost(agentIds.length, rounds, uint8(lotTemplates.length));
+        uint256 need = _worstCaseOpCost(agentIds.length, MAX_ROUNDS, uint8(lotTemplates.length));
         if (address(this).balance - expected < need) revert UnaffordableMatch(address(this).balance - expected, need);
 
         matchId = nextMatchId++;
         Match storage m = _matches[matchId];
         m.kind = MatchKind.RealStakes;
         m.phase = MatchPhase.Pricing;
-        m.rounds = rounds;
+        m.rounds = MAX_ROUNDS;
         m.currentRound = 1;
         m.numLots = uint8(lotTemplates.length);
         m.openedAt = block.timestamp;
@@ -274,7 +288,7 @@ contract Arena is AgentPlatformBase, Ownable {
         treasury.escrowMatch{value: expected}(matchId, agentIds, owners, entryStake);
 
         _seedLots(matchId, lotTemplates);
-        emit MatchOpened(matchId, MatchKind.RealStakes, agentIds, rounds, m.numLots);
+        emit MatchOpened(matchId, MatchKind.RealStakes, agentIds, MAX_ROUNDS, m.numLots);
         for (uint8 i = 0; i < m.numLots; i++) {
             _firePricingRequest(matchId, i);
         }
@@ -336,12 +350,7 @@ contract Arena is AgentPlatformBase, Ownable {
             trueValue = abi.decode(responses[0].result, (uint256));
         } else {
             // void the match on bad feed — keep settlement deterministic
-            m.phase = MatchPhase.Voided;
-            emit MatchVoided(ctx.matchId, "pricing failed");
-            _releaseAgents(ctx.matchId);
-            if (m.kind == MatchKind.RealStakes && address(treasury) != address(0)) {
-                treasury.refundMatch(ctx.matchId);
-            }
+            _void(ctx.matchId, "pricing failed");
             return;
         }
 
@@ -369,11 +378,11 @@ contract Arena is AgentPlatformBase, Ownable {
         while (m.forfeited[m.currentTurnIdx]) {
             m.currentTurnIdx = (m.currentTurnIdx + 1) % uint8(m.agentIds.length);
             skipGuard++;
-            if (skipGuard > 8) { _toSettling(matchId); return; }
+            if (skipGuard > 8) { _toSettling(matchId, EndReason.AllForfeited); return; }
         }
         uint256 agentId = m.agentIds[m.currentTurnIdx];
 
-        (string[] memory roles, string[] memory messages) = _buildPrompt(matchId, agentId);
+        (string[] memory roles, string[] memory messages) = _buildMovePrompt(matchId, agentId, m);
         bytes memory payload = abi.encodeWithSelector(
             ILlmAgent.inferChat.selector, roles, messages, false
         );
@@ -397,79 +406,53 @@ contract Arena is AgentPlatformBase, Ownable {
         emit MoveRequested(matchId, m.currentRound, m.currentTurnIdx, requestId, agentId);
     }
 
-    function _buildPrompt(uint256 matchId, uint256 agentId)
+    /// Marshal the storage state a move prompt needs into memory and hand off to
+    /// PromptLib (external lib — keeps the heavy string-building out of Arena's
+    /// bytecode). The log window is the last LOG_WINDOW entries, oldest→newest.
+    function _buildMovePrompt(uint256 matchId, uint256 agentId, Match storage m)
         internal view returns (string[] memory roles, string[] memory messages)
     {
         AgentRegistry.Agent memory a = registry.getAgent(agentId);
-        roles = new string[](2);
-        roles[0] = "system";
-        roles[1] = "user";
-        messages = new string[](2);
-        messages[0] = string.concat(
-            "You are agent \"", a.name, "\" in Bazaar - an on-chain auction where AI agents bid against each other.\n",
-            "Strategy: ", a.promptURI, "\n\n",
-            "FORMAT (return EXACTLY one line, no prose, no markdown, no quotes):\n",
-            "  OFFER|lot=<N>|side=BUY|price=<int>\n",
-            "  COUNTER|lot=<N>|price=<int>\n",
-            "  COALITION|partner=<int>|share=<int>\n",
-            "  PASS\n\n",
-            "RULES (will reject if violated):\n",
-            "- price must be an INTEGER. No decimals, no commas, no underscores, no unit suffix.\n",
-            "  OK: price=14    NOT OK: price=14_STT, price=14.5, price=1,400\n",
-            "- price must be <= your remaining budget.\n",
-            "- lot indices are 1-based.\n",
-            "- COUNTER must beat the standing offer.\n\n",
-            "GOAL: maximize your end-of-match score. Score = (lot true value / divisor) - paid price for each lot you own."
-        );
-        messages[1] = _renderState(matchId, agentId);
-    }
 
-    function _renderState(uint256 matchId, uint256 agentId) internal view returns (string memory) {
-        Match storage m = _matches[matchId];
-        uint256 budget;
-        for (uint256 i = 0; i < m.agentIds.length; i++) {
-            if (m.agentIds[i] == agentId) { budget = m.budget[i]; break; }
-        }
-        bytes memory buf = abi.encodePacked(
-            "Match ", _u(matchId), " | Round ", _u(m.currentRound), "/", _u(m.rounds),
-            " | You: agent=", _u(agentId), " budget=", _u(budget), "\n",
-            "Lots (hint = expected effective value after divisor):\n"
-        );
+        PromptLib.Lot[] memory lots = new PromptLib.Lot[](m.numLots);
         for (uint8 i = 0; i < m.numLots; i++) {
             Lot storage L = _lots[matchId][i];
-            buf = abi.encodePacked(buf,
-                "  ", _u(uint256(i)+1), ") ", L.category, " | divisor=", _u(L.valueDivisor),
-                " | hint=", L.valueHint
+            lots[i] = PromptLib.Lot(
+                L.category, L.valueDivisor, L.valueHint,
+                L.ownerAgentId, L.paidPrice, L.standingOfferPrice, L.standingOfferBy
             );
-            if (L.ownerAgentId != 0) {
-                buf = abi.encodePacked(buf, " | SOLD to agent ", _u(L.ownerAgentId), " at ", _u(L.paidPrice));
-            } else if (L.standingOfferPrice > 0) {
-                buf = abi.encodePacked(buf, " | standing offer ", _u(L.standingOfferPrice), " from agent ", _u(L.standingOfferBy));
-            } else {
-                buf = abi.encodePacked(buf, " | open");
-            }
-            buf = abi.encodePacked(buf, "\n");
         }
 
-        // Negotiation log (compact, one line per recorded move). Cap visible entries to last 32 for prompt size.
+        // Read the ring buffer oldest→newest. Before wrapping (count <= window) it's just
+        // log[0..count); after wrapping, the oldest entry is at (count % window).
         string[] storage log = _log[matchId];
-        uint256 n = log.length;
-        uint256 start = n > 32 ? n - 32 : 0;
-        if (n > 0) {
-            buf = abi.encodePacked(buf, "Log:\n");
-            for (uint256 i = start; i < n; i++) {
-                buf = abi.encodePacked(buf, "  ", log[i], "\n");
-            }
+        uint256 c = _logCount[matchId];
+        uint256 len = log.length; // == min(c, LOG_WINDOW)
+        uint256 startPos = c <= LOG_WINDOW ? 0 : c % LOG_WINDOW;
+        string[] memory window = new string[](len);
+        for (uint256 i = 0; i < len; i++) {
+            window[i] = log[(startPos + i) % LOG_WINDOW];
         }
-        buf = abi.encodePacked(buf, "Your turn. Output one move line.");
-        return string(buf);
+
+        return PromptLib.build(
+            a.name, a.promptURI, matchId, m.currentRound, m.rounds, agentId,
+            m.agentIds, m.budget, lots, window
+        );
     }
 
+    /// Append a move to the per-match ring buffer: grow until LOG_WINDOW, then overwrite the
+    /// oldest slot. So the buffer always holds the most-recent LOG_WINDOW moves — never a stale
+    /// frozen window — for matches of any length.
     function _logEntry(uint256 matchId, uint256 agentId, string memory action) internal {
-        string[] storage log = _log[matchId];
-        if (log.length >= MAX_LOG_ENTRIES) return; // hard cap; prompt window has a soft cap of 32
         Match storage m = _matches[matchId];
-        log.push(string.concat("R", _u(m.currentRound), ".T", _u(m.currentTurnIdx), " a", _u(agentId), " ", action));
+        string memory entry = string.concat("R", _u(m.currentRound), ".T", _u(m.currentTurnIdx), " a", _u(agentId), " ", action);
+        string[] storage log = _log[matchId];
+        uint256 c = _logCount[matchId]++;
+        if (log.length < LOG_WINDOW) {
+            log.push(entry);
+        } else {
+            log[c % LOG_WINDOW] = entry; // overwrite the oldest
+        }
     }
 
     /// @notice Callback for inferChat move generation.
@@ -524,9 +507,16 @@ contract Arena is AgentPlatformBase, Ownable {
         Match storage m = _matches[matchId];
         m.currentTurnIdx = (m.currentTurnIdx + 1) % uint8(m.agentIds.length);
         if (m.currentTurnIdx == 0) {
-            // round complete
+            // A full round just completed. Termination is emergent: if no agent made a real
+            // bid all round, the market has stalled → end now (matches rarely reach the cap).
+            if (!m.progressThisRound) {
+                _toSettling(matchId, EndReason.Stalled);
+                return;
+            }
+            m.progressThisRound = false; // reset for the next round
+            // Safety cap so an endless tiny-increment bidding war can't run forever.
             if (m.currentRound == m.rounds) {
-                _toSettling(matchId);
+                _toSettling(matchId, EndReason.Cap);
                 return;
             }
             unchecked { m.currentRound += 1; }
@@ -536,7 +526,7 @@ contract Arena is AgentPlatformBase, Ownable {
         for (uint256 i = 0; i < m.agentIds.length; i++) {
             if (!m.forfeited[i]) { anyActive = true; break; }
         }
-        if (!anyActive) { _toSettling(matchId); return; }
+        if (!anyActive) { _toSettling(matchId, EndReason.AllForfeited); return; }
         _fireMoveRequest(matchId);
     }
 
@@ -569,12 +559,14 @@ contract Arena is AgentPlatformBase, Ownable {
                     L.standingOfferPrice = mv.price;
                     L.standingOfferBy = agentId;
                     L.standingOfferIsBuy = true;
+                    m.progressThisRound = true; // taking an open lot is real progress
                     return (true, "");
                 }
                 if (mv.price <= L.standingOfferPrice) return (false, "offer must beat standing");
                 L.standingOfferPrice = mv.price;
                 L.standingOfferBy = agentId;
                 L.standingOfferIsBuy = true;
+                m.progressThisRound = true; // a real bid landed → the round made progress
                 return (true, "");
             }
             // SELL not applicable in Phase 1 (no inventory transfer); reject
@@ -589,6 +581,7 @@ contract Arena is AgentPlatformBase, Ownable {
                 L.standingOfferPrice = mv.price;
                 L.standingOfferBy = agentId;
                 L.standingOfferIsBuy = true;
+                m.progressThisRound = true; // a real bid landed → the round made progress
                 return (true, "");
             }
         }
@@ -616,6 +609,7 @@ contract Arena is AgentPlatformBase, Ownable {
             if (share > 99) return (false, "bad share");
             // commit coalition; final settlement at lot sale time
             L.coalitionPartner = agentId;
+            m.progressThisRound = true; // forming a coalition is a state change → progress
             // Track shares via packed uint? Keep simple: 50/50 implied. Future Phase 2 can extend.
             emit CoalitionFormed(matchId, lotIdx, mv.partner, agentId, L.standingOfferPrice);
             return (true, "");
@@ -626,11 +620,12 @@ contract Arena is AgentPlatformBase, Ownable {
 
     // --- Settlement -----------------------------------------------------------------------
 
-    function _toSettling(uint256 matchId) internal {
+    function _toSettling(uint256 matchId, EndReason reason) internal {
         Match storage m = _matches[matchId];
         m.phase = MatchPhase.Settling;
 
         // Resolve any standing offers (last-bidder-wins) since exhibition has no SELL counter
+        uint8 sold = 0;
         for (uint8 i = 0; i < m.numLots; i++) {
             Lot storage L = _lots[matchId][i];
             if (L.standingOfferPrice > 0 && L.ownerAgentId == 0) {
@@ -638,9 +633,40 @@ contract Arena is AgentPlatformBase, Ownable {
                 L.paidPrice = L.standingOfferPrice;
                 emit LotSold(matchId, i, L.ownerAgentId, L.paidPrice);
             }
+            if (L.ownerAgentId != 0) sold++;
         }
 
+        // Draw-on-no-trade: nothing ever changed hands → no contest. Void it (refund the pot,
+        // release the agents, no winner, no ELO churn) rather than crowning a 0-profit seat.
+        if (sold == 0) {
+            emit MatchEnded(matchId, m.currentRound, uint8(EndReason.NoTrade));
+            _void(matchId, "no trades");
+            return;
+        }
+
+        emit MatchEnded(matchId, m.currentRound, uint8(reason));
+        this.settleSelf(matchId);
+    }
+
+    /// External self-call trampoline. `_settle` is large; without this the via_ir optimizer inlines
+    /// the whole settlement chain at every termination site, blowing Arena past EIP-170. Routing
+    /// through an external `this.` call forces `_settle` to be compiled exactly once. Self-only.
+    function settleSelf(uint256 matchId) external {
+        if (msg.sender != address(this)) revert InvalidMatch(matchId);
         _settle(matchId);
+    }
+
+    /// Terminate a match with no settlement: mark Voided, release agents, refund any real-stakes
+    /// pot. Shared by the no-trade draw and the pricing-failure/reap paths.
+    function _void(uint256 matchId, string memory reason) internal {
+        Match storage m = _matches[matchId];
+        m.phase = MatchPhase.Voided;
+        m.finalizedAt = block.timestamp;
+        emit MatchVoided(matchId, reason);
+        _releaseAgents(matchId);
+        if (m.kind == MatchKind.RealStakes && address(treasury) != address(0)) {
+            treasury.refundMatch(matchId);
+        }
     }
 
     function _settle(uint256 matchId) internal {
@@ -812,16 +838,11 @@ contract Arena is AgentPlatformBase, Ownable {
 
         emit MatchReaped(matchId, m.phase);
         if (m.phase == MatchPhase.Pricing) {
-            m.phase = MatchPhase.Voided;
-            emit MatchVoided(matchId, "pricing failed"); // reuse literal (dedup) — no value to settle
-            _releaseAgents(matchId);
-            if (m.kind == MatchKind.RealStakes && address(treasury) != address(0)) {
-                treasury.refundMatch(matchId);
-            }
+            _void(matchId, "pricing failed"); // no lot ever got a value — nothing to settle
         } else {
-            // Negotiating: terminate on current holdings. _toSettling → _settle releases agents
-            // and routes the pot (Treasury.settleMatch / audit) without touching the move platform.
-            _toSettling(matchId);
+            // Negotiating: terminate on current holdings. _toSettling resolves standing offers,
+            // reveals, scores, releases agents, and pays out / audits without touching the platform.
+            _toSettling(matchId, EndReason.Reaped);
         }
     }
 

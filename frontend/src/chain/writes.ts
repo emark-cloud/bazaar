@@ -23,15 +23,19 @@ const PRICE_LLM = 70_000_000_000_000_000n;   // 0.07
 const PRICE_JSON = 30_000_000_000_000_000n;  // 0.03
 const SUBC = 3n;
 
+// Arena.MAX_ROUNDS — the hardcoded safety cap. Matches usually end earlier on a stall, but the
+// opener must fund the worst case up-front (unused deposits are rebated on the early end).
+export const MAX_ROUNDS = 10;
+
 /** Worst-case STT the Arena must hold to finish a match (every call pays full deposit). */
-export function worstCaseOperating(seats: number, rounds: number, lots: number): bigint {
+export function worstCaseOperating(seats: number, lots: number): bigint {
   const depMove = FLOOR + PRICE_LLM * SUBC;
   const depPrice = FLOOR + PRICE_JSON * SUBC;
-  return BigInt(seats * rounds) * depMove + BigInt(lots) * depPrice;
+  return BigInt(seats * MAX_ROUNDS) * depMove + BigInt(lots) * depPrice;
 }
 /** msg.value to send: operating headroom (+20%), plus the pot for real-stakes. */
-export function operatingValue(seats: number, rounds: number, lots: number): bigint {
-  return (worstCaseOperating(seats, rounds, lots) * 12n) / 10n;
+export function operatingValue(seats: number, lots: number): bigint {
+  return (worstCaseOperating(seats, lots) * 12n) / 10n;
 }
 
 const STARTING_BUDGET = 25_000_000_000_000_000_000n; // 25 STT in-game budget (exhibition)
@@ -62,26 +66,26 @@ async function writeWithGas(
 
 export async function openExhibitionTx(
   client: WalletClient, account: `0x${string}`,
-  opts: { agentIds: bigint[]; rounds: number; lots?: LotTemplate[] },
+  opts: { agentIds: bigint[]; lots?: LotTemplate[] },
 ): Promise<`0x${string}`> {
   const lots = opts.lots ?? DEFAULT_LOTS;
-  const value = operatingValue(opts.agentIds.length, opts.rounds, lots.length);
+  const value = operatingValue(opts.agentIds.length, lots.length);
   return writeWithGas(client, account, {
     address: CONTRACTS.arena, abi: ARENA_ABI, functionName: "openExhibition",
-    args: [opts.agentIds, STARTING_BUDGET, opts.rounds, lots], value,
+    args: [opts.agentIds, STARTING_BUDGET, lots], value,
   }, 15_000_000n);
 }
 
 export async function openRealStakesTx(
   client: WalletClient, account: `0x${string}`,
-  opts: { agentIds: bigint[]; rounds: number; entryStakeWei: bigint; lots?: LotTemplate[] },
+  opts: { agentIds: bigint[]; entryStakeWei: bigint; lots?: LotTemplate[] },
 ): Promise<`0x${string}`> {
   const lots = opts.lots ?? DEFAULT_LOTS;
   const pot = opts.entryStakeWei * BigInt(opts.agentIds.length);
-  const value = pot + operatingValue(opts.agentIds.length, opts.rounds, lots.length);
+  const value = pot + operatingValue(opts.agentIds.length, lots.length);
   return writeWithGas(client, account, {
     address: CONTRACTS.arena, abi: ARENA_ABI, functionName: "openRealStakes",
-    args: [opts.agentIds, opts.entryStakeWei, opts.rounds, lots], value,
+    args: [opts.agentIds, opts.entryStakeWei, lots], value,
   }, 15_000_000n);
 }
 
@@ -94,26 +98,25 @@ export async function pokeOpenNextTx(
 }
 
 /** The real-stakes value (pot + operating) a given config would send — for cost previews. */
-export function realStakesValue(seats: number, rounds: number, entryStakeWei: bigint): bigint {
-  return entryStakeWei * BigInt(seats) + operatingValue(seats, rounds, DEFAULT_LOTS.length);
+export function realStakesValue(seats: number, entryStakeWei: bigint): bigint {
+  return entryStakeWei * BigInt(seats) + operatingValue(seats, DEFAULT_LOTS.length);
 }
 
 // --- scheduler config + balance (for the Advance-League affordability hint) ----
 export interface SchedulerConfig {
-  entryStake: bigint; seatCount: number; rounds: number;
+  entryStake: bigint; seatCount: number;
   operatingPerMatch: bigint; minBalanceThreshold: bigint; balance: bigint;
 }
 export async function fetchSchedulerConfig(): Promise<SchedulerConfig> {
-  const [entryStake, seatCount, rounds, operatingPerMatch, minBalanceThreshold, balance] = await Promise.all([
+  const [entryStake, seatCount, operatingPerMatch, minBalanceThreshold, balance] = await Promise.all([
     publicClient.readContract({ address: CONTRACTS.scheduler, abi: SCHEDULER_ABI, functionName: "entryStake" }),
     publicClient.readContract({ address: CONTRACTS.scheduler, abi: SCHEDULER_ABI, functionName: "seatCount" }),
-    publicClient.readContract({ address: CONTRACTS.scheduler, abi: SCHEDULER_ABI, functionName: "rounds" }),
     publicClient.readContract({ address: CONTRACTS.scheduler, abi: SCHEDULER_ABI, functionName: "operatingPerMatch" }),
     publicClient.readContract({ address: CONTRACTS.scheduler, abi: SCHEDULER_ABI, functionName: "minBalanceThreshold" }),
     publicClient.getBalance({ address: CONTRACTS.scheduler }),
   ]);
   return {
-    entryStake, seatCount: Number(seatCount), rounds: Number(rounds),
+    entryStake, seatCount: Number(seatCount),
     operatingPerMatch, minBalanceThreshold, balance,
   };
 }

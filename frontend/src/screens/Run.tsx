@@ -4,7 +4,8 @@ import { parseEther } from "viem";
 import { fetchAllAgents } from "../chain/reads";
 import {
   openExhibitionTx, openRealStakesTx, pokeOpenNextTx, realStakesValue, operatingValue,
-  fetchSchedulerConfig, schedulerCanOpen, useTxAction, DEFAULT_LOTS, type SchedulerConfig,
+  fetchSchedulerConfig, schedulerCanOpen, useTxAction, DEFAULT_LOTS, MAX_ROUNDS,
+  type SchedulerConfig,
 } from "../chain/writes";
 import { useInjectedWallet } from "../chain/wallet";
 import { SigilTile } from "../components/SigilTile";
@@ -22,7 +23,6 @@ export default function Run() {
   const [sched, setSched] = useState<SchedulerConfig | null>(null);
 
   const [type, setType] = useState<MatchType>("exhibition");
-  const [rounds, setRounds] = useState(2);
   const [stake, setStake] = useState("1");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -58,11 +58,11 @@ export default function Run() {
   );
   const entryWei = (() => { try { return parseEther((stake || "0") as `${number}`); } catch { return 0n; } })();
   const valid =
-    seats >= 2 && seats <= 8 && rounds >= 1 && rounds <= 16 &&
+    seats >= 2 && seats <= 8 &&
     (type === "exhibition" || entryWei > 0n);
   const value = type === "realstakes"
-    ? realStakesValue(seats, rounds, entryWei)
-    : operatingValue(seats, rounds, DEFAULT_LOTS.length);
+    ? realStakesValue(seats, entryWei)
+    : operatingValue(seats, DEFAULT_LOTS.length);
 
   async function doOpen() {
     if (!wallet.address) { await wallet.connect(); return; }
@@ -70,8 +70,8 @@ export default function Run() {
     if (!client || !valid) return;
     const acct = wallet.address;
     open.run(() => type === "realstakes"
-      ? openRealStakesTx(client, acct, { agentIds, rounds, entryStakeWei: entryWei })
-      : openExhibitionTx(client, acct, { agentIds, rounds }));
+      ? openRealStakesTx(client, acct, { agentIds, entryStakeWei: entryWei })
+      : openExhibitionTx(client, acct, { agentIds }));
   }
   async function doPoke() {
     if (!wallet.address) { await wallet.connect(); return; }
@@ -117,12 +117,6 @@ export default function Run() {
 
         {/* params */}
         <div className="mt-4 flex flex-wrap gap-5">
-          <label className="block">
-            <span className="label-sm">rounds <span className="text-text-dim">(turns/agent)</span></span>
-            <input type="number" min={1} max={16} value={rounds}
-              onChange={(e) => setRounds(Math.max(1, Math.min(16, Number(e.target.value) || 1)))}
-              className="mt-1 w-24 bg-bg-base border border-border-subtle px-3 py-2 rounded-sm font-mono focus:outline-none focus:border-accent" />
-          </label>
           {type === "realstakes" && (
             <label className="block">
               <span className="label-sm">stake <span className="text-text-dim">(STT/agent)</span></span>
@@ -131,8 +125,14 @@ export default function Run() {
             </label>
           )}
           <div className="block">
-            <span className="label-sm">seats</span>
+            <span className="label-sm">players</span>
             <div className="mt-1 px-3 py-2 font-mono text-text-primary">{seats} <span className="text-text-dim text-xs">/ 2–8</span></div>
+          </div>
+          <div className="block">
+            <span className="label-sm">length</span>
+            <div className="mt-1 px-3 py-2 text-text-secondary text-xs max-w-[15rem] leading-snug">
+              ends when the market stalls · up to {MAX_ROUNDS} rounds
+            </div>
           </div>
         </div>
 
@@ -207,7 +207,6 @@ export default function Run() {
           <div className="mt-3 panel-raised p-3 space-y-1.5 text-xs font-mono">
             <Row k="match-maker balance" v={formatStt(sched.balance)} />
             <Row k="entry / match" v={`${formatStt(sched.entryStake)} × ${sched.seatCount}`} />
-            <Row k="rounds" v={`${sched.rounds}`} />
             {gate && <Row k="status" v={gate.ok ? "ready" : `needs ${formatStt(gate.required)}`} accent={gate.ok} warn={!gate.ok} />}
           </div>
         )}

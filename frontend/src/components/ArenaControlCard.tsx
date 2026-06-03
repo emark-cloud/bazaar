@@ -21,7 +21,6 @@ export function ArenaControlCard() {
   const [seatIds, setSeatIds] = useState<bigint[]>([]);
   const [sched, setSched] = useState<SchedulerConfig | null>(null);
   const [type, setType] = useState<MatchType>("exhibition");
-  const [rounds, setRounds] = useState(2);
   const open = useTxAction();
   const poke = useTxAction();
 
@@ -41,8 +40,8 @@ export function ArenaControlCard() {
     if (!client || seatIds.length < 2) return;
     const acct = wallet.address;
     open.run(() => type === "realstakes"
-      ? openRealStakesTx(client, acct, { agentIds: seatIds, rounds, entryStakeWei: parseEther("1") })
-      : openExhibitionTx(client, acct, { agentIds: seatIds, rounds }));
+      ? openRealStakesTx(client, acct, { agentIds: seatIds, entryStakeWei: parseEther("1") })
+      : openExhibitionTx(client, acct, { agentIds: seatIds }));
   }
   async function doPoke() {
     if (!wallet.address) { await wallet.connect(); return; }
@@ -89,10 +88,7 @@ export function ArenaControlCard() {
           </div>
         </div>
         <div className="mt-2 flex items-center gap-2">
-          <span className="label-xs">rounds</span>
-          <button onClick={() => setRounds((r) => Math.max(1, r - 1))} className="panel-raised w-6 h-6 leading-none hover:border-accent">‹</button>
-          <span className="font-mono text-sm w-5 text-center">{rounds}</span>
-          <button onClick={() => setRounds((r) => Math.min(16, r + 1))} className="panel-raised w-6 h-6 leading-none hover:border-accent">›</button>
+          <span className="label-xs text-text-dim normal-case tracking-normal">ends when the market stalls</span>
           <button onClick={doOpen} disabled={busyOpen || (!!wallet.address && seatIds.length < 2)}
             className={`ml-auto px-3 py-1.5 rounded-sm border font-display text-sm ${
               busyOpen ? "bg-bg-panel-raised border-border-strong text-text-dim cursor-wait"

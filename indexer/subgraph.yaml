@@ -9,9 +9,9 @@ dataSources:
     name: Arena
     network: somnia-testnet                # confirm with Ormi the slug they expect
     source:
-      address: "0xaa8a0cf920a3ce19ebaa5127f4e40cb049c94858"
+      address: "0x68be4fbf57b8a86f8becf70f20b5d1ab7798e0b3"
       abi: Arena
-      startBlock: 398772051                # deploy block of liveness Arena (RedeployArenaLiveness)
+      startBlock: 399753073                # deploy block of the maxRounds Arena (RedeployArenaLiveness)
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -53,6 +53,8 @@ dataSources:
           handler: handleWinnerDeclared
         - event: AgentForfeited(indexed uint256,uint256)
           handler: handleAgentForfeited
+        - event: MatchEnded(indexed uint256,uint8,uint8)
+          handler: handleMatchEnded
 
   - kind: ethereum/contract
     name: AgentRegistry
@@ -151,9 +153,9 @@ dataSources:
     name: LeagueScheduler
     network: somnia-testnet
     source:
-      address: "0x0fdad151de1e8357338f850978b148d09c4a243d"
+      address: "0xeeac435459bcb81ffed6f0451680198c71420f5f"
       abi: LeagueScheduler
-      startBlock: 398772300                # deploy block of liveness LeagueScheduler
+      startBlock: 399753073                # deploy block of the new LeagueScheduler
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

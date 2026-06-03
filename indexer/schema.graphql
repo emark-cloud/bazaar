@@ -26,7 +26,10 @@ type Match @entity(immutable: false) {
   matchId: BigInt!
   kind: Int!                     # 0=Exhibition, 1=RealStakes
   phase: Int!                    # MatchPhase enum
-  rounds: Int!
+  maxRounds: Int                 # the safety cap (matches usually end earlier on a stall). nullable so
+                                 # a grafted resync can copy pre-rename matches without this field set.
+  roundsPlayed: Int              # how many rounds actually ran (set at MatchEnded)
+  endReason: String              # "cap" | "stalled" | "allForfeited" | "reaped" | "noTrade"
   numLots: Int!
   openedAt: BigInt!
   openedAtBlock: BigInt!

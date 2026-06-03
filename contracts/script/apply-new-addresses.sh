@@ -9,8 +9,8 @@ set -euo pipefail
 NEW_ARENA="${1:?usage: apply-new-addresses.sh <NEW_ARENA> <NEW_SCHEDULER>}"
 NEW_SCHED="${2:?usage: apply-new-addresses.sh <NEW_ARENA> <NEW_SCHEDULER>}"
 
-OLD_ARENA="0xb129ec7d06e3136517c188113fe9b8a10f882738"
-OLD_SCHED="0x41431f15ab45689bbe5eb71690c58b291dfda7e1"
+OLD_ARENA="0xaa8a0cf920a3ce19ebaa5127f4e40cb049c94858"
+OLD_SCHED="0x0fdad151de1e8357338f850978b148d09c4a243d"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # lowercase the inputs to match the stored (lowercased) addresses

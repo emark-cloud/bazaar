@@ -40,11 +40,11 @@ contract OpenExhibition is Script {
         });
 
         uint256 startingBudget = 25 ether; // displays as "25 STT" per agent
-        uint8 rounds = 2;
 
         vm.startBroadcast(pk);
-        // 5 STT headroom on top of the Arena's existing operating balance.
-        uint256 matchId = arena.openExhibition{value: 5 ether}(ids, startingBudget, rounds, lots);
+        // Headroom on top of the Arena's existing operating balance. The match runs at most
+        // Arena.MAX_ROUNDS and usually ends earlier on a stall; unused deposits are rebated.
+        uint256 matchId = arena.openExhibition{value: 12 ether}(ids, startingBudget, lots);
         vm.stopBroadcast();
 
         console2.log("=== exhibition match opened ===");

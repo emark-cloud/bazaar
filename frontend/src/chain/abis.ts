@@ -96,7 +96,6 @@ export const ARENA_ABI = [
     inputs: [
       { name: "agentIds", type: "uint256[]" },
       { name: "startingBudget", type: "uint256" },
-      { name: "rounds", type: "uint8" },
       { name: "lotTemplates", type: "tuple[]", components: [
         { name: "category", type: "string" },
         { name: "feedUrl", type: "string" },
@@ -113,7 +112,6 @@ export const ARENA_ABI = [
     inputs: [
       { name: "agentIds", type: "uint256[]" },
       { name: "entryStake", type: "uint256" },
-      { name: "rounds", type: "uint8" },
       { name: "lotTemplates", type: "tuple[]", components: [
         { name: "category", type: "string" },
         { name: "feedUrl", type: "string" },

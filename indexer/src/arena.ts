@@ -8,6 +8,7 @@ import {
   MoveMade,
   MoveDefaulted,
   MoveRejected,
+  MatchEnded,
   CoalitionFormed,
   LotSold,
   LotRevealed,
@@ -63,7 +64,7 @@ export function handleMatchOpened(ev: MatchOpened): void {
   m.matchId = ev.params.matchId;
   m.kind = ev.params.kind;
   m.phase = 1; // Pricing
-  m.rounds = ev.params.rounds;
+  m.maxRounds = ev.params.rounds; // MatchOpened still carries the cap in its `rounds` field
   m.numLots = ev.params.numLots;
   m.openedAt = ev.block.timestamp;
   m.openedAtBlock = ev.block.number;
@@ -198,6 +199,17 @@ export function handleLotRevealed(ev: LotRevealed): void {
   lot.revealedValue = ev.params.trueValue;
   lot.revealed = true;
   lot.save();
+}
+
+const END_REASONS = ["cap", "stalled", "allForfeited", "reaped", "noTrade"];
+
+export function handleMatchEnded(ev: MatchEnded): void {
+  const m = Match.load(ev.params.matchId.toString());
+  if (m == null) return;
+  m.roundsPlayed = ev.params.roundsPlayed;
+  const r = i32(ev.params.reason);
+  m.endReason = r < END_REASONS.length ? END_REASONS[r] : "unknown";
+  m.save();
 }
 
 export function handleWinnerDeclared(ev: WinnerDeclared): void {

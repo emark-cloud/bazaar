@@ -43,10 +43,10 @@ contract OpenAuditedMatch is Script {
         // 25 STT × 4 agents = 100 STT pot. Plus 5 STT operating funds (stays in arena balance).
         uint256 entryStake = 25 ether;
         uint256 pot = entryStake * 4;
-        uint256 op = 5 ether;
+        uint256 op = 12 ether; // operating headroom for up to Arena.MAX_ROUNDS (mostly rebated)
 
         vm.startBroadcast(pk);
-        uint256 matchId = arena.openRealStakes{value: pot + op}(ids, entryStake, 2, lots);
+        uint256 matchId = arena.openRealStakes{value: pot + op}(ids, entryStake, lots);
         vm.stopBroadcast();
 
         console2.log("=== Phase 3 audited match opened ===");

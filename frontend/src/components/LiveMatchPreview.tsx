@@ -134,7 +134,7 @@ export function LiveMatchPreview({ matchId, onEnter }: { matchId: bigint; onEnte
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot" />
             bidding · {isLive ? "live" : "replay"}
           </span>
-          <span className="text-text-dim">round {state.currentRound}/{state.rounds}</span>
+          <span className="text-text-dim">round {state.currentRound} / {state.rounds} max</span>
         </div>
         <div className="flex flex-col gap-2">
           {ticker.length === 0 && (

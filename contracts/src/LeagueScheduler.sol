@@ -28,8 +28,9 @@ contract LeagueScheduler is SomniaEventHandler, Ownable {
     // --- Tunables ---
     uint256 public entryStake          = 25 ether;     // per-agent stake
     uint8   public seatCount           = 4;            // agents per match
-    uint8   public rounds              = 2;
-    uint256 public operatingPerMatch   = 5 ether;      // sent alongside the pot to fund Arena's platform calls
+    uint8   public rounds              = 2;            // DEPRECATED: Arena now caps at Arena.MAX_ROUNDS; unused
+    uint256 public operatingPerMatch   = 10 ether;     // sent alongside the pot to fund Arena's platform calls.
+                                                       // Must cover Arena's worst case at MAX_ROUNDS (~9.84 STT for 4 agents).
     uint256 public minBalanceThreshold = 32 ether + 50 ether;
                                                        // 32 STT subscription gate + headroom for one full match (~50 STT)
     uint256 public matchLookbackBufferBlocks = 12;     // ignored — kept for backward-compat tuning
@@ -164,7 +165,9 @@ contract LeagueScheduler is SomniaEventHandler, Ownable {
         Arena.LotTemplate[] memory lots = new Arena.LotTemplate[](lotCount);
         for (uint256 i = 0; i < lotCount; i++) lots[i] = _lotTemplates[i];
 
-        uint256 matchId = arena.openRealStakes{value: cost}(seats, entryStake, rounds, lots);
+        // `rounds` is no longer passed — the Arena caps every match at Arena.MAX_ROUNDS and ends
+        // most earlier on a market stall. Operating funds must cover that worst case (operatingPerMatch).
+        uint256 matchId = arena.openRealStakes{value: cost}(seats, entryStake, lots);
         matchesScheduled += 1;
         emit MatchScheduled(matchId, seats);
     }
