@@ -112,9 +112,18 @@ export function handleNegotiationStarted(ev: NegotiationStarted): void {
 export function handleMoveRequested(ev: MoveRequested): void {
   // The Move row is created later (on MoveMade/Defaulted/Rejected), and those
   // events don't re-emit the requestId — so stash it here, keyed by the move's
-  // turn, for the resolving handler to attach. MoveRequested fires exactly once
-  // per turn, so the link is immutable.
-  const link = new MoveRequestLink(moveId(ev.params.matchId, ev.params.round, ev.params.turnIdx));
+  // turn, for the resolving handler to attach.
+  //
+  // A turn can fire MoveRequested MORE than once: when an agent's move request
+  // DEFAULTS (platform/runner timeout — common on the flaky testnet), the Arena
+  // re-requests the SAME (matchId,round,turnIdx) until it lands or forfeits. The
+  // link is immutable, so a naive re-create crashes the whole subgraph with an
+  // "immutable entity only allows inserts" overwrite error. Keep the first link
+  // and skip re-creates — the resolving Move attaches the receipt of the first
+  // attempt at this turn, which is good enough for the 🧠 link.
+  const id = moveId(ev.params.matchId, ev.params.round, ev.params.turnIdx);
+  if (MoveRequestLink.load(id) != null) return;
+  const link = new MoveRequestLink(id);
   link.requestId = ev.params.requestId;
   link.save();
 }
