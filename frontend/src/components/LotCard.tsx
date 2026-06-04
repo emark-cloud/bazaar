@@ -1,4 +1,5 @@
 import { useCountUp, usePrefersReducedMotion } from "../lib/motion";
+import { formatBudget } from "../lib/format";
 
 /** Pull a compact source label out of a feed URL, e.g. "api.coinbase.com". */
 function sourceLabel(feedUrl: string): string {
@@ -80,7 +81,7 @@ export function LotCard({ lot, index, agentNameById }: {
           <>
             <span className="label-sm">sold to</span>
             <span className="font-mono">
-              {agentNameById(lot.ownerAgentId)} @ {lot.paidPrice.toString()}
+              {agentNameById(lot.ownerAgentId)} @ {formatBudget(lot.paidPrice)} STT
               {lot.coalitionPartner !== 0n && (
                 <span className="text-accent"> +{agentNameById(lot.coalitionPartner)}</span>
               )}
@@ -90,7 +91,7 @@ export function LotCard({ lot, index, agentNameById }: {
           <>
             <span className="label-sm">top bid</span>
             <span className="font-mono text-text-secondary">
-              {lot.standingOfferPrice.toString()} ← {agentNameById(lot.standingOfferBy)}
+              {formatBudget(lot.standingOfferPrice)} STT ← {agentNameById(lot.standingOfferBy)}
             </span>
           </>
         ) : (

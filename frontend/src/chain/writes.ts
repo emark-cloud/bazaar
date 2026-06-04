@@ -38,7 +38,13 @@ export function operatingValue(seats: number, lots: number): bigint {
   return (worstCaseOperating(seats, lots) * 12n) / 10n;
 }
 
-const STARTING_BUDGET = 25_000_000_000_000_000_000n; // 25 STT in-game budget (exhibition)
+// In-game exhibition budget. This is play money in the SAME unit as a lot's true worth and the
+// agents' bids ("STT-int" per Arena.sol) — NOT wei. It must sit on the feed-value scale so the
+// economics work: a lot's worth is the raw feed integer (ETH≈1500-4000, SOL≈50-200) and score =
+// worth − paidPrice. A wei budget (25e18) dwarfs that 1.5e3-scale worth by ~16 orders of magnitude,
+// making the live data irrelevant and every bid a catastrophic "loss". 5000 covers the priciest
+// lot (ETH ~4000) with headroom, so agents can profitably out-read the hint vs the revealed value.
+const STARTING_BUDGET = 5_000n;
 
 // --- low-level write with Somnia gas headroom --------------------------------
 // Somnia meters gas far above a standard EVM and injected wallets under-estimate

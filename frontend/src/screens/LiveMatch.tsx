@@ -9,6 +9,7 @@ import { NegotiationStream } from "../components/NegotiationStream";
 import { LotCard } from "../components/LotCard";
 import { SigilTile } from "../components/SigilTile";
 import { CountUp } from "../components/CountUp";
+import { sttScale } from "../lib/format";
 import { personaColorOf } from "../sigils/personas";
 import { Term } from "../components/onboarding/Term";
 import { MATCH_PHASE, MATCH_PHASE_LABEL, AUDIT_STATUS, AUDIT_STATUS_LABEL } from "../chain/types";
@@ -233,9 +234,10 @@ export default function LiveMatch() {
           <div className="flex flex-col items-end gap-0.5">
             <span className="label-xs">net profit</span>
             <CountUp
-              to={Number(winner.score)}
-              prefix={Number(winner.score) > 0 ? "+" : ""}
-              className={`font-mono text-[22px] font-bold ${Number(winner.score) < 0 ? "text-value-down" : "text-value-up"}`}
+              to={sttScale(winner.score)}
+              prefix={winner.score > 0n ? "+" : ""}
+              suffix=" STT"
+              className={`font-mono text-[22px] font-bold ${winner.score < 0n ? "text-value-down" : "text-value-up"}`}
             />
           </div>
         </div>

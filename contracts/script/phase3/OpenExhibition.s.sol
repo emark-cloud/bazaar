@@ -39,7 +39,12 @@ contract OpenExhibition is Script {
             valueHint:    "typically 50-200"
         });
 
-        uint256 startingBudget = 25 ether; // displays as "25 STT" per agent
+        // In-game play budget in the SAME unit as a lot's worth and the agents' bids ("STT-int",
+        // not wei). It must sit on the feed-value scale (ETH≈1500-4000, SOL≈50-200) so score =
+        // worth − paidPrice is meaningful; a wei budget (25e18) dwarfs the ~1.5e3 worth and makes
+        // the live data irrelevant. 5000 covers the priciest lot with headroom. Mirrors the
+        // frontend STARTING_BUDGET in chain/writes.ts.
+        uint256 startingBudget = 5_000;
 
         vm.startBroadcast(pk);
         // Headroom on top of the Arena's existing operating balance. The match runs at most

@@ -6,6 +6,21 @@ export function formatStt(wei: bigint, digits = 2): string {
   return `${a}${b ? "." + b.slice(0, digits) : ""} STT`;
 }
 
+/**
+ * Scale a signed score/P&L to a display number. Scores are `worth − paidPrice` in whatever unit the
+ * match's budget used: an STT-int (small integer) for exhibition, or wei for real-stakes. Small
+ * magnitudes pass through as-is; wei-scale magnitudes (|v| ≥ 1e9) collapse to their STT float — so a
+ * +305 exhibition score and a wei-scale score both render as a sane "± N STT" instead of a raw 1e19.
+ * Sign-aware (formatBudget is not — its <1e9 branch would print negative wei raw).
+ */
+export function sttScale(v: bigint): number {
+  const neg = v < 0n;
+  const mag = neg ? -v : v;
+  if (mag < 1_000_000_000n) return Number(v);
+  const stt = Number(formatEther(mag));
+  return neg ? -stt : stt;
+}
+
 export function shortAddr(addr?: string): string {
   if (!addr) return "—";
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;

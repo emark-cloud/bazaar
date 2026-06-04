@@ -3,6 +3,7 @@ import type { Agent, MoveEntry } from "../chain/types";
 import { TraceWaterfall } from "./TraceWaterfall";
 import { personaColorOf } from "../sigils/personas";
 import { RECEIPT_BASE } from "../chain/config";
+import { formatBudget } from "../lib/format";
 
 type View = "transcript" | "orderbook";
 
@@ -82,7 +83,7 @@ export function NegotiationStream({
                     <span>{agentById.get(m.agentId.toString())?.name ?? `#${m.agentId}`}</span>
                     <span>{m.kind}</span>
                     <span>{parts.lot ?? "—"}</span>
-                    <span>{parts.price ?? (m.reason ? "✗" : "—")}</span>
+                    <span>{fmtPrice(parts.price) ?? (m.reason ? "✗" : "—")}</span>
                   </div>
                   {expanded.has(i) && <TraceWaterfall move={m} />}
                 </div>
@@ -103,8 +104,8 @@ function TranscriptLine({
   const parts = parseMove(move.raw);
 
   let phrase = move.raw;
-  if (move.kind === "OFFER")     phrase = `offers ${parts.price ?? "?"} STT for item ${parts.lot ?? "?"}`;
-  if (move.kind === "COUNTER")   phrase = `counters at ${parts.price ?? "?"} on item ${parts.lot ?? "?"}`;
+  if (move.kind === "OFFER")     phrase = `offers ${fmtPrice(parts.price) ?? "?"} STT for item ${parts.lot ?? "?"}`;
+  if (move.kind === "COUNTER")   phrase = `counters at ${fmtPrice(parts.price) ?? "?"} STT on item ${parts.lot ?? "?"}`;
   if (move.kind === "COALITION") phrase = `proposes a team-up with agent ${parts.partner ?? "?"} (split ${parts.share ?? "50"}/${100 - Number(parts.share ?? "50")})`;
   if (move.kind === "PASS")      phrase = `passes`;
   if (move.kind === "REJECTED")  phrase = `move rejected — ${move.reason ?? "reason"}`;
@@ -184,6 +185,16 @@ function shortId(id: bigint): string {
   const s = id.toString();
   if (s.length <= 8) return s;
   return s.slice(0, 6) + "…";
+}
+
+/**
+ * Bid prices in the move payload are in the same unit as the in-game budget — an STT-int for
+ * exhibition, wei for real-stakes (Arena seeds budget = entryStake). formatBudget renders either
+ * cleanly (small ints as-is, wei-scale as STT) so the trail never shows a raw 25e18-style value.
+ */
+function fmtPrice(price?: string): string | undefined {
+  if (price === undefined) return undefined;
+  try { return formatBudget(BigInt(price)); } catch { return price; }
 }
 
 /** Parse a raw move string into its named parts. */

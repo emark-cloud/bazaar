@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { Agent } from "../chain/types";
 import { SigilTile, type SigilState } from "./SigilTile";
 import { personaColorOf, nameToPersona, PERSONA_LABEL } from "../sigils/personas";
-import { formatBudget } from "../lib/format";
+import { formatBudget, sttScale } from "../lib/format";
 import { CountUp } from "./CountUp";
 
 export function AgentPanel({
@@ -20,7 +20,10 @@ export function AgentPanel({
 }) {
   const hasAgent = "elo" in agent;
   const isWinner = state === "victory";
-  const scoreNum = score === undefined ? undefined : Number(score);
+  // Score is `worth − paidPrice` in the match's budget unit (STT-int for exhibition, wei for
+  // real-stakes). sttScale collapses wei-scale magnitudes to STT so the panel never shows a raw 1e19.
+  const scoreNum =
+    score === undefined ? undefined : sttScale(typeof score === "bigint" ? score : BigInt(Math.trunc(score)));
 
   // The agent's identity color drives the left rule (--p); amber chrome handles
   // turn/winner emphasis. Persona color is identity only — never a fill.
@@ -82,6 +85,7 @@ export function AgentPanel({
             <CountUp
               to={scoreNum}
               prefix={scoreNum > 0 ? "+" : ""}
+              suffix=" STT"
               className={`font-semibold ${
                 scoreNum > 0 ? "text-value-up" : scoreNum < 0 ? "text-value-down" : "text-text-dim"
               }`}
