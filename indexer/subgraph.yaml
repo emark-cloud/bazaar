@@ -9,9 +9,9 @@ dataSources:
     name: Arena
     network: somnia-testnet                # confirm with Ormi the slug they expect
     source:
-      address: "0x68be4fbf57b8a86f8becf70f20b5d1ab7798e0b3"
+      address: "0xfffe8fe466df19ec3a50887c8390ef06cdae262f"
       abi: Arena
-      startBlock: 399753073                # deploy block of the maxRounds Arena (RedeployArenaLiveness)
+      startBlock: 400553725                # deploy block of the REAL_STAKES_BUDGET Arena (RedeployArenaLiveness)
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -153,9 +153,9 @@ dataSources:
     name: LeagueScheduler
     network: somnia-testnet
     source:
-      address: "0x38638671d3041d7f277d400b374f552b1d0d75d8"
+      address: "0x49172f42cce918e2d37d13cca779fee786321947"
       abi: LeagueScheduler
-      startBlock: 400172078                # deploy block of the clean-defaults LeagueScheduler
+      startBlock: 400553851                # deploy block of the REAL_STAKES_BUDGET LeagueScheduler
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

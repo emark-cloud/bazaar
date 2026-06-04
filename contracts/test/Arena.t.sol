@@ -356,6 +356,33 @@ contract ArenaTest is Test {
         assertEq(treas.seasonFund(), 0, "no rake taken on a draw");
     }
 
+    /// The in-game bidding budget for real-stakes is REAL_STAKES_BUDGET (value scale), decoupled
+    /// from the wei entry stake — which only funds the escrow pot. So bids/worth/score share one
+    /// scale, and a bid above the play budget is rejected even though it's far below the 25-ETH stake.
+    function testRealStakesBudgetIsDecoupledFromStake() public {
+        Arena.LotTemplate[] memory lots = _oneLot();
+        uint256 matchId = arena.openRealStakes{value: 100 ether + OPERATING}(_ids(), 25 ether, lots);
+
+        (, , , uint256[] memory budgets, , , , ) = arena.getMatch(matchId);
+        assertEq(arena.REAL_STAKES_BUDGET(), 5000, "play budget is value-scale");
+        for (uint256 i = 0; i < budgets.length; i++) {
+            assertEq(budgets[i], 5000, "budget is the play budget, not the 25e18 wei stake");
+        }
+
+        // The pot is still the wei stake (escrowed), proving the two are separate.
+        (uint256 escrowStake, uint256 pot, , , , , ) = treas.getEscrow(matchId);
+        assertEq(escrowStake, 25 ether, "escrow keeps the wei entry stake");
+        assertEq(pot, 100 ether, "pot escrowed from the wei stake");
+
+        // A bid above the play budget is rejected — cap is 5000, not 25e18.
+        plat.deliverUint(1, 50);
+        _move("OFFER|lot=1|side=BUY|price=5001");
+        assertEq(arena.getLot(matchId, 0).standingOfferPrice, 0, "over-play-budget bid rejected");
+        // A bid within the play budget is accepted.
+        _move("OFFER|lot=1|side=BUY|price=40");
+        assertEq(arena.getLot(matchId, 0).standingOfferPrice, 40, "in-budget bid stands");
+    }
+
     function testPricingFailureVoidsMatch() public {
         uint256 matchId = _openMatch();
         plat.deliverFail(1);

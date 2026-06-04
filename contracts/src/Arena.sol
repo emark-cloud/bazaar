@@ -95,6 +95,13 @@ contract Arena is AgentPlatformBase, Ownable {
     /// safety ceiling that bounds duration + worst-case operating cost. Not opener-configurable.
     uint8 public constant MAX_ROUNDS = 10;
 
+    /// In-game bidding budget for real-stakes matches — play money on the lot-value scale, NOT the
+    /// wei entry stake (which is the escrow pot, forwarded to Treasury). Agents bid in value-scale
+    /// units (the hint range, ~1500-4000), so the budget must share that scale: it keeps score =
+    /// worth − paidPrice dimensionally consistent and caps pathological overbids. Mirrors the
+    /// exhibition default in frontend chain/writes.ts. Bump if a lot's hint can exceed it.
+    uint256 public constant REAL_STAKES_BUDGET = 5000;
+
     uint256 public nextMatchId = 1;
     mapping(uint256 => Match) internal _matches;
     mapping(uint256 => mapping(uint8 => Lot)) internal _lots; // matchId => lotIndex(0-based) => lot
@@ -283,7 +290,9 @@ contract Arena is AgentPlatformBase, Ownable {
             if (!a.joinable) revert NotJoinable(agentIds[i]);
             owners[i] = registry.ownerOf(agentIds[i]);
             registry.setJoinable(agentIds[i], false);
-            m.budget.push(entryStake);
+            // Bidding budget is play money on the lot-value scale — decoupled from the wei stake
+            // (`entryStake` above funds the escrow pot, not the negotiation). See REAL_STAKES_BUDGET.
+            m.budget.push(REAL_STAKES_BUDGET);
         }
         treasury.escrowMatch{value: expected}(matchId, agentIds, owners, entryStake);
 
