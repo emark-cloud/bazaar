@@ -26,13 +26,14 @@ contract LeagueScheduler is SomniaEventHandler, Ownable {
     Arena         public immutable arena;
 
     // --- Tunables ---
-    uint256 public entryStake          = 25 ether;     // per-agent stake
+    uint256 public entryStake          = 0.25 ether;   // per-agent stake (small so a modestly-funded
+                                                       // scheduler can run real-stakes matches on testnet)
     uint8   public seatCount           = 4;            // agents per match
     uint8   public rounds              = 2;            // DEPRECATED: Arena now caps at Arena.MAX_ROUNDS; unused
     uint256 public operatingPerMatch   = 10 ether;     // sent alongside the pot to fund Arena's platform calls.
                                                        // Must cover Arena's worst case at MAX_ROUNDS (~9.84 STT for 4 agents).
-    uint256 public minBalanceThreshold = 32 ether + 50 ether;
-                                                       // 32 STT subscription gate + headroom for one full match (~50 STT)
+    uint256 public minBalanceThreshold = 35 ether;     // open-gate floor. Real gate is max(this, pot + operating
+                                                       // + 32 STT reactivity reserve); ~43 STT at the defaults above.
     uint256 public matchLookbackBufferBlocks = 12;     // ignored — kept for backward-compat tuning
     /// @notice The MatchFinalized event signature topic Arena emits. Updated if the event sig changes.
     bytes32 public matchFinalizedTopic;
