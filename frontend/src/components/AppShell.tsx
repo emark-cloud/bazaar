@@ -48,7 +48,10 @@ export default function AppShell() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full flex flex-col">
+    // Fixed to the viewport (h-screen, not min-h-screen) so the header + rail stay put and the
+    // scrollable region is <main> — which lets height-capped pages (the Live Match grid) scroll
+    // their inner panels (the negotiation trail) in place instead of growing the whole document.
+    <div className="h-screen w-full flex flex-col overflow-hidden">
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 h-12 border-b border-border-subtle bg-bg-panel/60 backdrop-blur-sm">
         <div className="flex items-center gap-3">
@@ -82,7 +85,7 @@ export default function AppShell() {
         </div>
       </header>
 
-      <div className="flex-1 flex">
+      <div className="flex-1 flex min-h-0">
         {/* Left rail */}
         <nav className="w-16 bg-bg-panel border-r border-border-subtle flex flex-col items-center py-2">
           <NavItem to="/"        label="HOME"  glyph="●" hint="Home — what's happening now" />
@@ -94,7 +97,7 @@ export default function AppShell() {
         </nav>
 
         {/* Main */}
-        <main className="flex-1 min-w-0 overflow-y-auto">
+        <main className="flex-1 min-w-0 min-h-0 overflow-y-auto">
           <Outlet />
         </main>
       </div>
