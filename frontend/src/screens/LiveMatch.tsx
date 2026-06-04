@@ -244,9 +244,9 @@ export default function LiveMatch() {
       )}
 
       {/* Four-region grid */}
-      <div className="grid grid-cols-[260px_1fr_300px] gap-3 flex-1 min-h-0">
+      <div className="grid grid-cols-[260px_minmax(0,1fr)_300px] gap-3 flex-1 min-h-0 min-w-0">
         {/* Left — agents */}
-        <div className="flex flex-col gap-2 min-h-0 overflow-y-auto">
+        <div className="flex flex-col gap-2 min-h-0 min-w-0 overflow-y-auto">
           {snapshot.agentIds.map((id, idx) => {
             const a = agentById.get(id.toString());
             const active = idx === snapshot.currentTurnIdx && isLive;
@@ -275,7 +275,7 @@ export default function LiveMatch() {
         <NegotiationStream moves={moves} agentById={agentById} />
 
         {/* Right — lots + season fund */}
-        <aside className="flex flex-col gap-2 min-h-0 overflow-y-auto">
+        <aside className="flex flex-col gap-2 min-h-0 min-w-0 overflow-y-auto">
           {lots.map((l, i) => (
             <LotCard
               key={i}
@@ -288,7 +288,7 @@ export default function LiveMatch() {
       </div>
 
       {/* Bottom — move log strip (subset, expandable in transcript above) */}
-      <div className="panel px-3 py-2 text-xs font-mono text-text-secondary flex items-center gap-4">
+      <div className="panel px-3 py-2 text-xs font-mono text-text-secondary flex flex-wrap items-center gap-x-4 gap-y-1">
         <span>moves <span className="text-text-primary">{moves.length}</span></span>
         <span>offers <span className="text-text-primary">{moves.filter((m) => m.kind === "OFFER").length}</span></span>
         <span>counters <span className="text-text-primary">{moves.filter((m) => m.kind === "COUNTER").length}</span></span>

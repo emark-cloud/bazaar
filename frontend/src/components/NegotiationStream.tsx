@@ -35,7 +35,7 @@ export function NegotiationStream({
   }
 
   return (
-    <section className="panel h-full flex flex-col">
+    <section className="panel h-full flex flex-col min-h-0 min-w-0">
       <header className="flex items-center justify-between px-4 py-2 border-b border-border-subtle">
         <h3 className="font-display text-lg">Negotiation</h3>
         <div className="inline-flex border border-border-subtle rounded-sm overflow-hidden text-xs font-mono">
