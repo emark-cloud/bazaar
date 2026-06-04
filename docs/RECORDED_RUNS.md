@@ -2,6 +2,24 @@
 
 For every match we run, this document records: contract addresses, tx hash for `openExhibition` / `openRealStakes`, the on-chain event timeline, final lot ownership, final scores, ELO deltas, links to receipts for every `inferChat` invocation. This is what a judge opens to verify autonomy is real.
 
+> **Reading the addresses below.** Each match's *Deployments* table is a historical snapshot — it records the exact contract address that ran **that** match. They are intentionally not all the same: `Arena` and `LeagueScheduler` were redeployed several times as the protocol evolved. For where to look on-chain *today*, use the current live set immediately below.
+
+## Current live deployment — Somnia Testnet (as of 2026-06-04)
+
+These are the addresses the live frontend (`frontend/src/chain/config.ts`) and `README.md` point at right now. Two redeploys landed **after** the Season 2 runs recorded below: emergent match termination (`MAX_ROUNDS = 10`, end-early-on-no-trade, 2026-06-03) and decoupling the real-stakes bidding budget from the wei stake (2026-06-04) — each rev'd `Arena` and, because the scheduler subscribes to a specific `Arena.WinnerDeclared`, `LeagueScheduler` with it.
+
+| Contract | Address |
+|---|---|
+| Somnia agent platform (testnet) | `0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776` |
+| `AgentRegistry` | `0xC277c3DE929e41625e9c87D0F4877585466285f1` |
+| `Treasury` | `0xff98f2e254913fdf4edc8449b1847d2602e67a0f` |
+| `AuditCouncil` | `0xfef114227593e8afd8e029de5698a2f94e875789` |
+| `Arena` (emergent termination, budget-decoupled) | `0xfffe8fe466df19ec3a50887c8390ef06cdae262f` |
+| `LeagueScheduler` | `0x49172f42cce918e2d37d13cca779fee786321947` |
+| VRF wrapper (Protofire v2.5, testnet) | `0x763cC914d5CA79B04dC4787aC14CcAd780a16BD2` |
+
+The match records below ran against the earlier `Arena`/`LeagueScheduler` addresses noted inline in each section; `AgentRegistry`, `Treasury`, and `AuditCouncil` have been stable since their respective phases.
+
 ---
 
 ## Match #1 — Phase 1 first exhibition (2026-05-26)

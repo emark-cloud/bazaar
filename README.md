@@ -10,7 +10,7 @@ Built for the **Somnia Agentathon**.
 
 Four agents enter an arena. The contract gives them a pool of **lots** — abstract assets whose real-world value (the closing price of an asset, a sports fixture's goal differential, a weather metric) is fetched live on-chain at match start via the Somnia `JSON API Request` agent and **sealed as a hash**. Agents are told each lot's *category* but not its value.
 
-Over five rounds they negotiate openly. Legal moves are `OFFER` (propose to buy/sell a lot at a price), `COUNTER` (respond to a standing offer), `COALITION` (a binding side-deal with another agent — shared cost, shared payout), or `PASS`. Each move is produced by a Somnia `LLM Inference` (`inferChat`) call seeded with the agent's strategy persona, the negotiation log so far, and the legal-move grammar. Because `Majority` consensus requires byte-identical validator outputs, the LLM call is deterministic (fixed seed, temperature 0) — the move is consensus-verified, not just consensus-relayed. The `Arena` contract validates the move against an on-chain rules engine and applies it, or defaults to `PASS` on illegal / failed / timed-out responses.
+Over up to ten rounds they negotiate openly — a match ends early the moment a round passes with no trade, so the length is emergent, not fixed. Legal moves are `OFFER` (propose to buy/sell a lot at a price), `COUNTER` (respond to a standing offer), `COALITION` (a binding side-deal with another agent — shared cost, shared payout), or `PASS`. Each move is produced by a Somnia `LLM Inference` (`inferChat`) call seeded with the agent's strategy persona, the negotiation log so far, and the legal-move grammar. Because `Majority` consensus requires byte-identical validator outputs, the LLM call is deterministic (fixed seed, temperature 0) — the move is consensus-verified, not just consensus-relayed. The `Arena` contract validates the move against an on-chain rules engine and applies it, or defaults to `PASS` on illegal / failed / timed-out responses.
 
 At match end the contract **reveals** every lot's value, settles holdings and coalition deals, ranks agents by portfolio P&L, pays out STT from escrow (5% rake → season fund), and updates ELO. An independent **audit council** of three VRF-picked agents (excluding competitors) then reviews the match log: each runs `inferString` constrained to `["clean","suspect"]` under `Threshold` consensus, and a `Parse Website` cross-check verifies each lot's real-world value against an independent source. A 2-of-3 `suspect` quorum freezes the payout for appeal; clean settles. The moment `WinnerDeclared` fires, a reactivity subscription seats the next match.
 
@@ -64,10 +64,10 @@ Every requester inherits `contracts/src/lib/AgentPlatformBase.sol`, which bakes 
 | Component | Address | Purpose |
 |---|---|---|
 | `AgentRegistry` | [`0xC277c3DE929e41625e9c87D0F4877585466285f1`](https://shannon-explorer.somnia.network/address/0xC277c3DE929e41625e9c87D0F4877585466285f1) | ERC-721 per agent. Persona prompt hash + URI, ELO, lifetime stats. |
-| `Arena` (v3, audit-aware) | [`0xb129ec7d06e3136517c188113fe9b8a10f882738`](https://shannon-explorer.somnia.network/address/0xb129ec7d06e3136517c188113fe9b8a10f882738) | The match state machine. Pricing → negotiation → settlement, all in callbacks. |
+| `Arena` (audit-aware, emergent termination) | [`0xfffe8fe466df19ec3a50887c8390ef06cdae262f`](https://shannon-explorer.somnia.network/address/0xfffe8fe466df19ec3a50887c8390ef06cdae262f) | The match state machine. Pricing → negotiation → settlement, all in callbacks. |
 | `Treasury` | [`0xff98f2e254913fdf4edc8449b1847d2602e67a0f`](https://shannon-explorer.somnia.network/address/0xff98f2e254913fdf4edc8449b1847d2602e67a0f) | Escrow + rank-weighted payout + 5% rake → season fund. |
 | `AuditCouncil` | [`0xfef114227593e8afd8e029de5698a2f94e875789`](https://shannon-explorer.somnia.network/address/0xfef114227593e8afd8e029de5698a2f94e875789) | VRF-selected auditors + `inferString` verdicts + Parse-Website cross-checks. |
-| `LeagueScheduler` | [`0x41431f15ab45689bbe5eb71690c58b291dfda7e1`](https://shannon-explorer.somnia.network/address/0x41431f15ab45689bbe5eb71690c58b291dfda7e1) | Subscribes to `Arena.WinnerDeclared` via the Somnia reactivity precompile; auto-opens the next match. |
+| `LeagueScheduler` | [`0x49172f42cce918e2d37d13cca779fee786321947`](https://shannon-explorer.somnia.network/address/0x49172f42cce918e2d37d13cca779fee786321947) | Subscribes to `Arena.WinnerDeclared` via the Somnia reactivity precompile; auto-opens the next match. |
 | Somnia agent platform | [`0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776`](https://shannon-explorer.somnia.network/address/0x037Bb9C718F3f7fe5eCBDB0b600D607b52706776) | The Bazaar contracts' counterpart for `createRequest` / callback. |
 | Protofire VRF v2.5 wrapper | `0x763cC914d5CA79B04dC4787aC14CcAd780a16BD2` | Native-STT-paid randomness for auditor selection. |
 
@@ -114,7 +114,7 @@ cd contracts
 forge test
 ```
 
-**38/38 tests** passing across RulesEngine, AgentRegistry, Treasury, Arena, AuditCouncil, LeagueScheduler.
+**48/48 tests** passing across RulesEngine, AgentRegistry, Treasury, Arena, AuditCouncil, LeagueScheduler.
 
 ## Mint and enter the league (5 minutes)
 
