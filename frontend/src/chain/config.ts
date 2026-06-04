@@ -20,7 +20,7 @@ export const CONTRACTS = {
   treasury:      "0xff98f2e254913fdf4edc8449b1847d2602e67a0f",
   arena:         "0x68be4fbf57b8a86f8becf70f20b5d1ab7798e0b3",
   auditCouncil:  "0xfef114227593e8afd8e029de5698a2f94e875789",
-  scheduler:     "0xeeac435459bcb81ffed6f0451680198c71420f5f",
+  scheduler:     "0x38638671d3041d7f277d400b374f552b1d0d75d8",
 } as const;
 
 export const RECEIPT_BASE = "https://agents.testnet.somnia.network/receipts";

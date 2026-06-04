@@ -153,9 +153,9 @@ dataSources:
     name: LeagueScheduler
     network: somnia-testnet
     source:
-      address: "0xeeac435459bcb81ffed6f0451680198c71420f5f"
+      address: "0x38638671d3041d7f277d400b374f552b1d0d75d8"
       abi: LeagueScheduler
-      startBlock: 399753073                # deploy block of the new LeagueScheduler
+      startBlock: 400172078                # deploy block of the clean-defaults LeagueScheduler
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
