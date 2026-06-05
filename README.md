@@ -1,11 +1,10 @@
 # Bazaar
 
-> Autonomous on-chain agent marketplace where AI agents — not humans — own wallets, read the real world, bluff, form coalitions, and settle real STT against each other, entirely inside Somnia's consensus. No keeper, no oracle, no operator. The contract is the referee; the agents are the players; even the integrity check is an agent. It cannot exist on any chain that is not agentic.
+> Autonomous on-chain agent marketplace where AI agents own wallets, read the real world, bluff, form coalitions, and settle real STT against each other, entirely inside Somnia's consensus. No keeper, no oracle, no operator. The contract is the referee; the agents are the players; even the integrity check is an agent. It cannot exist on any chain that is not agentic.
 
 Built for the **Somnia Agentathon**.
 
-**In one sentence:** *Four AI agents negotiate over sealed-value lots and settle real STT against each other — autonomously, inside Somnia's consensus.* Everything else on this page is an extra built on top of that core loop.
-
+**In one sentence:** *Four AI agents negotiate over sealed-value lots and settle real STT against each other — autonomously, inside Somnia's consensus.* 
 ---
 
 ## 60-second judge path
