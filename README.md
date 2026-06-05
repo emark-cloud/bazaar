@@ -4,6 +4,59 @@
 
 Built for the **Somnia Agentathon**.
 
+**In one sentence:** *Four AI agents negotiate over sealed-value lots and settle real STT against each other — autonomously, inside Somnia's consensus.* Everything else on this page is an extra built on top of that core loop.
+
+---
+
+## 60-second judge path
+
+No time? Confirm the whole thing in under a minute:
+
+1. **Verify a real match in one command.** From a clone with `pnpm install`:
+   ```bash
+   pnpm verify 104        # or: npx bazaar-verify 104
+   ```
+   It connects to live Somnia, replays match #104 from on-chain events, re-computes the 5% rake + rank-weighted payouts, **asserts they match the on-chain payouts exactly**, and prints a column of green `PASS` checks — bytecode ✓ events ✓ receipts ✓ settlement math ✓ payouts ✓. Exit code `0` = verified. (See [`verify/`](verify/).)
+2. **It's live.** Every contract below is deployed on Somnia testnet — click any address to see it on the explorer.
+3. **It ran.** [`docs/RECORDED_RUNS.md`](docs/RECORDED_RUNS.md) has the on-chain tx hashes, move-by-move transcripts, and consensus receipts for five real matches — including a fully autonomous three-match season opened by the on-chain scheduler with no human in the loop.
+4. **It checks out.** `cd contracts && forge test` → **48/48 green** across the rules engine, registry, treasury, arena, audit council, and scheduler.
+
+---
+
+## Status — what's live vs. planned
+
+No vague claims. This is the real state at submission:
+
+| Capability | Status |
+|---|---|
+| Negotiation loop (multi-round, `inferChat`, `Majority` consensus) | ✅ Live on Somnia testnet |
+| Sealed-value lots (JSON API pricing, hash-committed) | ✅ Live |
+| Coalitions (binding in-negotiation side-deals) | ✅ Live |
+| Real STT settlement + 5% rake → season fund | ✅ Live |
+| Autonomous scheduling (on-chain Reactivity precompile) | ✅ Live — 2 reactive callbacks delivered on testnet |
+| Audit council (VRF auditors + `inferString` + Parse-Website cross-check) | ✅ Live — full pipeline ran on Match #3 |
+| `bazaar-verify` CLI (one-command on-chain verification) | ✅ Live — verifies matches #100–#104 against testnet |
+| Browser-minted agents (MetaMask `mint`) | ✅ Live — agent #14 minted through the browser |
+| Frontend (5 screens, reads live chain state) | ✅ Built — hosted deploy pending |
+| Indexer (Ormi-style subgraph) | 🔶 Built — deploy gated on Ormi credentials |
+| Full mint-your-own-agent UX + multi-season ELO ladder | 🔶 Partial / Planned |
+
+**MVP scope, stated plainly.** Bazaar foregrounds a flawless negotiation-and-settlement core, verifiable on-chain. The audit council and autonomous scheduler are also live because they're what makes the claim "no keeper, no oracle, no operator" literally true — but the full mint-your-own-agent UX and the multi-season ladder are deliberately fenced as Phase 2 rather than shipped half-working. Narrow and flawless over broad and partial.
+
+---
+
+## Why Bazaar is not a prediction market
+
+Bazaar's agents do **not** bet on an external outcome and wait for it to resolve. They negotiate *with each other* over assets, and price discovery happens **through the negotiation itself** — offers, counters, coalitions, and walk-aways. The real-world data (a closing price, a goal differential, a weather metric) only sets each lot's *hidden* worth so the negotiation has ground truth to converge toward; it is never the thing being predicted. There is no market on "will X happen." There is a sealed value, four agents reasoning about it under uncertainty, and a settlement. That also makes Bazaar a different animal from Somnia's flagship Prophecy Social — this is agent-vs-agent price discovery, not a prediction venue.
+
+## Why this is not just another agent wrapper
+
+Most entries are one agent calling one LLM endpoint behind a UI — advisory output from an off-chain bot. Bazaar is the opposite on three counts:
+
+- **The agents act on each other.** A move is an offer or coalition aimed at another agent, not a chatbot reply to a user.
+- **Every move is consensus-verified inside the chain.** Each turn is a Somnia `LLM Inference` request settled by validator `Majority` (byte-identical deterministic output) — the move is consensus-*verified*, not just consensus-relayed from an off-chain process.
+- **The contract is the agent.** The auctioneer, escrow, referee — and even the integrity check — are contracts. There is no operator wallet pulling strings between turns.
+
 ---
 
 ## How a match works
@@ -82,6 +135,26 @@ Every requester inherits `contracts/src/lib/AgentPlatformBase.sol`, which bakes 
 | **Audit** | `AuditCouncil.beginAudit` freezes Treasury, fires `VRF` for K=3 auditors, fans out `inferString` verdicts (Threshold 5/3) and `Parse Website` cross-checks. Quorum 2-of-3 suspect → refund; clean → settle. |
 | **Liveness** | `appealTimeout(matchId)` and `LeagueScheduler.pokeOpenNext()` give manual-trigger fallbacks (same code path) when async services lag. |
 
+## Verify it yourself — `bazaar-verify`
+
+Autonomy you can't independently check is just a claim. `bazaar-verify` is the verifiable half of the trace layer: one command that connects to live Somnia, replays a match from on-chain events, and **re-computes the settlement math, asserting it equals the on-chain payouts exactly.**
+
+```bash
+pnpm verify 104        # the full-stack showcase match — or: npx bazaar-verify 104
+```
+
+```
+  ✓ PASS  bytecode         all 5 contracts deployed on-chain
+  ✓ PASS  events           replayed 8 turns over 2 rounds; lifecycle intact
+  ✓ PASS  receipts         6/6 moves finalized Success by platform consensus
+  ✓ PASS  settlement math  recomputed 5% rake + rank weights match on-chain payouts exactly
+                           pot 20 STT = rake 1 + payouts 19  ·  payouts [9.5, 5.32, 2.85, 1.33]
+  ✓ PASS  payouts          4 payouts delivered to NFT owners; winner ranked #1
+  ✓ VERIFIED  match #104 is real on-chain   (5 pass · 0 fail · 0 skip)
+```
+
+Bundled matches `100`–`104` work with no flags; any other match takes `--arena` + `--from-block` (both in `docs/RECORDED_RUNS.md`). `--json` gives machine-readable output and the exit code is `0` only when every check passes. Full details in [`verify/README.md`](verify/README.md).
+
 ## Repository layout
 
 ```
@@ -89,6 +162,7 @@ contracts/       Foundry — every Bazaar contract + every Phase 0 verification 
 frontend/        Vite + React + Tailwind + viem 2 — 5 screens reading live state
 indexer/         Ormi-style subgraph manifest + AssemblyScript mappings
 starter-kit/     `npx create-somnia-agent` scaffold + bin/CLI
+verify/          `bazaar-verify` — one-command on-chain match verifier (viem)
 docs/            RECORDED_RUNS, PHASE{0..6}_RESULTS, TECHNICAL, AUDIT_CHECKLIST
 bazaar.md        v2 architecture spec
 design.md        Frontend design system

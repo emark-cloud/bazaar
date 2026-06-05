@@ -5,6 +5,15 @@ Check items off as they ship. A phase is done only when its **demo artifact** ru
 
 ---
 
+## Refinement pass — `refine.md` (framing + verification deliverable)
+
+- [x] **Move 1/3/5 — README framing.** One-sentence pitch; "Why Bazaar is not a prediction market" + "Why this is not just another agent wrapper" sections; honest status table (real statuses — audit council + scheduler are ✅ Live, not Phase-2); MVP-scope statement; 60-second judge path.
+- [x] **Move 4 — `bazaar-verify` CLI.** New `verify/` workspace package. `node verify/bin/bazaar-verify.mjs <matchId>` (also `pnpm verify`). Connects to live Somnia, replays a match from on-chain events, verifies the platform consensus trail (`RequestFinalized` Success), and **recomputes the 5% rake + rank-weighted payouts and asserts they equal on-chain `Treasury.MatchSettled.payouts` exactly.** Bundled registry for matches #100–#104; `--arena`/`--from-block` for others; `--json` + exit codes for CI. **Verified live: matches #100, #101, #104 all pass 5/5.**
+- [ ] **Move 2 — DELIBERATELY NOT APPLIED.** The memo predates the audit council being built; it's live and proven (Match #3). Demoting it would hide a working feature. Reframed as presentation ordering instead.
+- [ ] **Move 6 — Telegram bot / chat-native** — not started (optional extra).
+
+---
+
 ## Setup (day 1, parallelizable with Phase 0)
 
 - [x] Initialize git repo at `/home/emark/bazaar/`; first commit with the three specs + CLAUDE.md + TODO.md

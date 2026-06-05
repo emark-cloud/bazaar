@@ -1,0 +1,24 @@
+{
+  "name": "bazaar-verify",
+  "version": "0.1.0",
+  "description": "One-command on-chain verifier for Bazaar matches: replays a match from Somnia events and asserts the settlement math against the live on-chain payouts.",
+  "type": "module",
+  "bin": {
+    "bazaar-verify": "bin/bazaar-verify.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "verify": "node bin/bazaar-verify.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "license": "MIT"
+}

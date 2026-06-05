@@ -62,6 +62,12 @@ importers:
 
   starter-kit: {}
 
+  verify:
+    dependencies:
+      viem:
+        specifier: ^2.21.0
+        version: 2.51.0(typescript@5.9.3)
+
 packages:
 
   '@adraffy/ens-normalize@1.11.1':
