@@ -28,3 +28,8 @@ frontend/.vite/
 /design.md
 /bazaar.md
 /TODO.md
+
+# local-only design assets (kept on disk, not tracked)
+bazaar-brand-kit/
+bazaar-design-system/
+design_handoff_arena_polish/
