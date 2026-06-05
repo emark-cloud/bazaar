@@ -66,8 +66,6 @@ export default function Hub() {
           </span>
           <span className="text-text-dim">·</span>
           <span>{latestMatch ? `match #${latestMatch.toString()}` : "starting soon"}</span>
-          <span className="text-text-dim">·</span>
-          <span className="text-text-dim">practice network</span>
         </div>
 
         <h1 className="relative font-display mt-3.5 text-[40px] leading-[1.08] tracking-[-0.02em] text-text-primary">

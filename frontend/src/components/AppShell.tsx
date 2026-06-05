@@ -4,7 +4,6 @@ import { fetchSchedulerStats, fetchTreasurySeasonFund, fetchArenaNextMatchId } f
 import { formatStt } from "../lib/format";
 import { BazaarMark } from "../sigils/BazaarMark";
 import { useGlossary } from "./onboarding/GlossaryContext";
-import { GlossaryPanel } from "./onboarding/GlossaryPanel";
 import { WelcomeModal } from "./onboarding/WelcomeModal";
 
 function NavItem({ to, label, glyph, hint }: { to: string; label: string; glyph: string; hint: string }) {
@@ -28,7 +27,7 @@ function NavItem({ to, label, glyph, hint }: { to: string; label: string; glyph:
 
 export default function AppShell() {
   const [stats, setStats] = useState<{ matches: bigint; season: bigint; sched: bigint } | null>(null);
-  const { openGlossary, openWelcome } = useGlossary();
+  const { openWelcome } = useGlossary();
 
   useEffect(() => {
     let cancelled = false;
@@ -75,13 +74,6 @@ export default function AppShell() {
           >
             what is this?
           </button>
-          <button
-            onClick={() => openGlossary()}
-            className="px-2 py-1 border border-border-subtle rounded-sm hover:border-accent hover:text-accent transition-colors"
-            title="Plain-English glossary"
-          >
-            ? help
-          </button>
         </div>
       </header>
 
@@ -102,9 +94,8 @@ export default function AppShell() {
         </main>
       </div>
 
-      {/* Global onboarding overlays — first-visit explainer + plain-English glossary */}
+      {/* Global onboarding overlay — first-visit explainer */}
       <WelcomeModal />
-      <GlossaryPanel />
     </div>
   );
 }

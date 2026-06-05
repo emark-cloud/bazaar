@@ -1,19 +1,16 @@
-import { useGlossary } from "./GlossaryContext";
 import { GLOSSARY_BY_SLUG } from "../../content/glossary";
 
 /**
  * An inline, learnable term. Renders the (usually plain-language) word with a
- * dotted underline; hover/focus shows a one-line plain definition, and clicking
- * opens the full Glossary scrolled to that entry. This is how we "keep the
- * necessary technical terms but explain them" — the jargon stays one hover away
- * from a definition instead of stopping a newcomer cold.
+ * dotted underline; hover/focus shows a one-line plain definition. This is how
+ * we "keep the necessary technical terms but explain them" — the jargon stays
+ * one hover away from a definition instead of stopping a newcomer cold.
  *
  *   <Term slug="stake">put tokens on the line</Term>
  *
  * Children override the displayed text; omit them to show the entry's own term.
  */
 export function Term({ slug, children }: { slug: string; children?: React.ReactNode }) {
-  const { openGlossary } = useGlossary();
   const entry = GLOSSARY_BY_SLUG[slug];
   if (!entry) return <>{children}</>;
 
@@ -21,7 +18,6 @@ export function Term({ slug, children }: { slug: string; children?: React.ReactN
     <span className="group/term relative inline-block">
       <button
         type="button"
-        onClick={() => openGlossary(slug)}
         className="cursor-help border-b border-dotted border-text-dim hover:border-accent hover:text-text-primary focus:outline-none focus:text-accent transition-colors"
         aria-label={`What is ${entry.term}? ${entry.short}`}
       >
@@ -36,9 +32,6 @@ export function Term({ slug, children }: { slug: string; children?: React.ReactN
         <span className="block font-display text-[12px] text-text-primary">{entry.term}</span>
         <span className="mt-0.5 block font-body text-[11px] leading-snug text-text-secondary normal-case tracking-normal">
           {entry.short}
-        </span>
-        <span className="mt-1 block font-mono text-[9px] uppercase tracking-wider text-accent">
-          click to learn more →
         </span>
       </span>
     </span>

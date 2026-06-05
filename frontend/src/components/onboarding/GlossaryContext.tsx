@@ -1,18 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 /**
- * App-wide onboarding state: the Glossary panel (optionally scrolled to a term)
- * and the first-visit Welcome modal. Kept in one tiny context so any component —
- * a <Term> deep in the transcript, a help button in the header — can open either
- * without prop-drilling.
+ * App-wide onboarding state: the first-visit Welcome modal. Kept in one tiny
+ * context so any component — a help button in the header, the modal itself —
+ * can open it without prop-drilling.
  */
 const WELCOME_KEY = "bazaar.welcomed.v1";
 
 interface GlossaryState {
-  /** slug to scroll/highlight, or "" for the top of the panel; null = closed */
-  openSlug: string | null;
-  openGlossary: (slug?: string) => void;
-  closeGlossary: () => void;
   welcomeOpen: boolean;
   openWelcome: () => void;
   closeWelcome: () => void;
@@ -21,7 +16,6 @@ interface GlossaryState {
 const Ctx = createContext<GlossaryState | null>(null);
 
 export function GlossaryProvider({ children }: { children: ReactNode }) {
-  const [openSlug, setOpenSlug] = useState<string | null>(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
 
   // Show the welcome explainer once, on a visitor's first ever load. Wrapped in
@@ -33,8 +27,6 @@ export function GlossaryProvider({ children }: { children: ReactNode }) {
     } catch { /* storage unavailable — skip auto-open */ }
   }, []);
 
-  const openGlossary = useCallback((slug?: string) => setOpenSlug(slug ?? ""), []);
-  const closeGlossary = useCallback(() => setOpenSlug(null), []);
   const openWelcome = useCallback(() => setWelcomeOpen(true), []);
   const closeWelcome = useCallback(() => {
     setWelcomeOpen(false);
@@ -42,7 +34,7 @@ export function GlossaryProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ openSlug, openGlossary, closeGlossary, welcomeOpen, openWelcome, closeWelcome }}>
+    <Ctx.Provider value={{ welcomeOpen, openWelcome, closeWelcome }}>
       {children}
     </Ctx.Provider>
   );

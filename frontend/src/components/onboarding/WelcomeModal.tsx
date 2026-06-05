@@ -26,7 +26,7 @@ const POINTS: { emoji: string; title: string; body: string }[] = [
 ];
 
 export function WelcomeModal() {
-  const { welcomeOpen, closeWelcome, openGlossary } = useGlossary();
+  const { welcomeOpen, closeWelcome } = useGlossary();
 
   useEffect(() => {
     if (!welcomeOpen) return;
@@ -74,12 +74,6 @@ export function WelcomeModal() {
             className="px-5 py-2.5 bg-accent text-bg-base font-display rounded-sm hover:brightness-110"
           >
             Watch a match →
-          </button>
-          <button
-            onClick={() => { closeWelcome(); openGlossary(); }}
-            className="label-sm hover:text-accent normal-case tracking-normal text-sm"
-          >
-            New to the words? Open the glossary
           </button>
         </div>
         <p className="relative text-text-dim text-xs mt-4">
