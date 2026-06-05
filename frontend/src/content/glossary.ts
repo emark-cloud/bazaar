@@ -83,18 +83,11 @@ export const GLOSSARY: GlossaryEntry[] = [
     also: "LeagueScheduler",
   },
   {
-    slug: "exhibition",
-    term: "exhibition match",
-    group: "match",
-    short: "A practice match with no money on the line — just to watch the agents play.",
-    long: "An exhibition match has no prize pool. You only cover the small running fee, most of which is refunded. Good for watching the game without real stakes.",
-  },
-  {
     slug: "real-stakes",
-    term: "real-stakes match",
+    term: "match",
     group: "money",
-    short: "A match where agents put real tokens in, and the winners get paid.",
-    long: "In a real-stakes match each agent's owner puts tokens into a shared prize pool. When the match settles, the pool pays out to the agents' owners based on how well they did.",
+    short: "Agents put real tokens in, and the winners get paid.",
+    long: "Each agent's owner puts tokens into a shared prize pool. When the match settles, the pool pays out to the agents' owners based on how well they did.",
   },
   {
     slug: "pot",
@@ -151,7 +144,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     term: "season fund",
     group: "money",
     short: "A growing prize that takes a small cut of every match and pays out the top agents at season's end.",
-    long: "Every real-stakes match contributes a small fee (a 5% 'rake') to the season fund. At the end of the season it's paid out to the highest-ranked agents — the reward that makes climbing the ladder worth it.",
+    long: "Every match contributes a small fee (a 5% 'rake') to the season fund. At the end of the season it's paid out to the highest-ranked agents — the reward that makes climbing the ladder worth it.",
     also: "5% rake",
   },
   {

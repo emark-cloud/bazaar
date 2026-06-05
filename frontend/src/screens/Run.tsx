@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { parseEther } from "viem";
 import { fetchAllAgents } from "../chain/reads";
 import {
-  openExhibitionTx, openRealStakesTx, pokeOpenNextTx, realStakesValue, operatingValue,
+  openRealStakesTx, pokeOpenNextTx, realStakesValue,
   fetchSchedulerConfig, schedulerCanOpen, useTxAction, DEFAULT_LOTS, MAX_ROUNDS,
   type SchedulerConfig,
 } from "../chain/writes";
@@ -15,14 +15,12 @@ import { formatStt, shortAddr } from "../lib/format";
 import type { Agent } from "../chain/types";
 
 const EXPLORER_TX = "https://shannon-explorer.somnia.network/tx";
-type MatchType = "exhibition" | "realstakes";
 
 export default function Run() {
   const wallet = useInjectedWallet();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [sched, setSched] = useState<SchedulerConfig | null>(null);
 
-  const [type, setType] = useState<MatchType>("exhibition");
   const [stake, setStake] = useState("1");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -57,21 +55,15 @@ export default function Run() {
     [agents, selected],
   );
   const entryWei = (() => { try { return parseEther((stake || "0") as `${number}`); } catch { return 0n; } })();
-  const valid =
-    seats >= 2 && seats <= 8 &&
-    (type === "exhibition" || entryWei > 0n);
-  const value = type === "realstakes"
-    ? realStakesValue(seats, entryWei)
-    : operatingValue(seats, DEFAULT_LOTS.length);
+  const valid = seats >= 2 && seats <= 8 && entryWei > 0n;
+  const value = realStakesValue(seats, entryWei);
 
   async function doOpen() {
     if (!wallet.address) { await wallet.connect(); return; }
     const client = wallet.getClient();
     if (!client || !valid) return;
     const acct = wallet.address;
-    open.run(() => type === "realstakes"
-      ? openRealStakesTx(client, acct, { agentIds, entryStakeWei: entryWei })
-      : openExhibitionTx(client, acct, { agentIds }));
+    open.run(() => openRealStakesTx(client, acct, { agentIds, entryStakeWei: entryWei }));
   }
   async function doPoke() {
     if (!wallet.address) { await wallet.connect(); return; }
@@ -97,33 +89,16 @@ export default function Run() {
           there it plays itself — pricing the items, the bidding, and the payout.
         </p>
 
-        {/* type toggle */}
-        <div className="mt-5">
-          <span className="label-sm">match type</span>
-          <div className="mt-1 inline-flex border border-border-subtle rounded-sm overflow-hidden text-sm font-mono">
-            {(["exhibition", "realstakes"] as MatchType[]).map((t) => (
-              <button key={t} onClick={() => setType(t)}
-                className={`px-4 py-1.5 ${type === t ? "bg-bg-panel-raised text-accent" : "text-text-secondary hover:text-text-primary"}`}>
-                {t === "exhibition" ? "Exhibition" : "Real-stakes"}
-              </button>
-            ))}
-          </div>
-          <p className="label-xs mt-1.5 text-text-dim normal-case tracking-normal">
-            {type === "exhibition"
-              ? "No prizes — you just cover a small running fee (mostly refunded). Good for watching the game."
-              : "Your wallet funds the prize pool; it pays out to the winning agents' owners at the end."}
-          </p>
-        </div>
-
         {/* params */}
-        <div className="mt-4 flex flex-wrap gap-5">
-          {type === "realstakes" && (
-            <label className="block">
-              <span className="label-sm">stake <span className="text-text-dim">(STT/agent)</span></span>
-              <input type="text" value={stake} onChange={(e) => setStake(e.target.value.replace(/[^0-9.]/g, ""))}
-                className="mt-1 w-28 bg-bg-base border border-border-subtle px-3 py-2 rounded-sm font-mono focus:outline-none focus:border-accent" />
-            </label>
-          )}
+        <div className="mt-5 flex flex-wrap gap-5">
+          <label className="block">
+            <span className="label-sm">stake <span className="text-text-dim">(STT/agent)</span></span>
+            <input type="text" value={stake} onChange={(e) => setStake(e.target.value.replace(/[^0-9.]/g, ""))}
+              className="mt-1 w-28 bg-bg-base border border-border-subtle px-3 py-2 rounded-sm font-mono focus:outline-none focus:border-accent" />
+            <p className="label-xs mt-1.5 text-text-dim normal-case tracking-normal max-w-[15rem]">
+              Your wallet funds the prize pool; it pays out to the winning agents' owners at the end.
+            </p>
+          </label>
           <div className="block">
             <span className="label-sm">players</span>
             <div className="mt-1 px-3 py-2 font-mono text-text-primary">{seats} <span className="text-text-dim text-xs">/ 2–8</span></div>
@@ -186,7 +161,7 @@ export default function Run() {
           </button>
           <span className="label-xs text-text-secondary">
             you’ll send <span className="font-mono text-text-primary">~{formatStt(value)}</span>
-            {type === "realstakes" && <span className="text-text-dim"> (prize pool {formatStt(entryWei * BigInt(seats))} + fees)</span>}
+            <span className="text-text-dim"> (prize pool {formatStt(entryWei * BigInt(seats))} + fees)</span>
           </span>
         </div>
         <TxLine status={open.status} doneNote="match started" liveLink />
@@ -197,7 +172,7 @@ export default function Run() {
       <aside className="col-span-4 panel p-4 self-start">
         <h3 className="font-display text-lg">Start the next league match</h3>
         <p className="text-text-secondary text-sm mt-1.5">
-          One click starts the next <Term slug="real-stakes">real-stakes match</Term> with the
+          One click starts the next match with the
           top-{sched?.seatCount ?? 4} agents by <Term slug="elo">rating</Term>. The{" "}
           <Term slug="scheduler">match-maker</Term> funds the{" "}
           <Term slug="pot">prize pool</Term> — you only pay the tiny{" "}

@@ -184,7 +184,6 @@ export default function LiveMatch() {
           <span className="font-display text-lg text-text-primary">Match #{matchId.toString()}</span>
           <span>round <span className="text-text-primary font-mono">{snapshot.currentRound}</span><span className="text-text-dim"> / {snapshot.rounds} max</span></span>
           <span>turn <span className="text-text-primary font-mono">{snapshot.currentTurnIdx + 1}/{snapshot.agentIds.length}</span></span>
-          <span>{snapshot.kind === 1 ? "real stakes" : "exhibition"}</span>
           <span className={isLive ? "text-accent" : settled ? "text-value-up" : "text-text-dim"}>
             {isLive && <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot mr-1.5" />}
             {settled ? "✓ Final" : phaseLabel}

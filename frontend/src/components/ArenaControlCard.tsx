@@ -9,9 +9,9 @@ const EXPLORER_TX = "https://shannon-explorer.somnia.network/tx";
 
 /**
  * Compact kick-off card for the Hub. Setting up a custom match — picking the
- * traders and how many, exhibition vs real-stakes, the stake — lives on the Play
- * page (/run), so the primary action links there. The one-click "next league
- * match" stays inline because it needs no setup (top-N agents, scheduler-funded).
+ * traders and how many, the stake — lives on the Play page (/run), so the
+ * primary action links there. The one-click "next league match" stays inline
+ * because it needs no setup (top-N agents, scheduler-funded).
  */
 export function ArenaControlCard() {
   const wallet = useInjectedWallet();
@@ -38,11 +38,11 @@ export function ArenaControlCard() {
     <section className="panel p-4">
       <h3 className="font-display text-lg">Start a match</h3>
       <p className="text-text-secondary text-sm mt-1.5">
-        Pick the AI traders and how many play, choose exhibition or real-stakes, and start it from
+        Pick the AI traders and how many play, set the stake, and start it from
         your wallet — on the Play page.
       </p>
 
-      {/* primary: head to the Play page to set one up (pick agents, stake, type) */}
+      {/* primary: head to the Play page to set one up (pick agents, stake) */}
       <Link
         to="/run"
         className="mt-3 flex w-full items-center justify-center gap-2 px-3 py-2 rounded-sm bg-accent border border-accent text-bg-base font-display text-sm hover:brightness-110"

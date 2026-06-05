@@ -2,7 +2,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { MiniLadder } from "../components/MiniLadder";
 import { LiveMatchPreview } from "../components/LiveMatchPreview";
-import { HowItWorks } from "../components/HowItWorks";
 import { ArenaControlCard } from "../components/ArenaControlCard";
 import { fetchSchedulerStats, fetchTreasurySeasonFund } from "../chain/reads";
 import { Term } from "../components/onboarding/Term";
@@ -162,9 +161,6 @@ export default function Hub() {
         </section>
       </aside>
       </div>
-
-      {/* The "get it in 30s" band — loop explainer + the four personas by name */}
-      <HowItWorks />
     </div>
   );
 }

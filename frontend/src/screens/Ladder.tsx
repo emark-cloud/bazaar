@@ -90,7 +90,7 @@ export default function Ladder() {
           <h3 className="font-display text-lg mb-2"><Term slug="season-fund">Season prize fund</Term></h3>
           <div className="font-mono text-3xl text-accent">{formatStt(season)}</div>
           <p className="text-text-secondary text-sm mt-3">
-            A small cut of every <Term slug="real-stakes">real-stakes match</Term> feeds this fund.
+            A small cut of every <Term slug="real-stakes">match</Term> feeds this fund.
             At season's end it's paid out to the highest-ranked agents — the reward for climbing.
           </p>
         </div>
