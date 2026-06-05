@@ -45,10 +45,6 @@ No vague claims. This is the real state at submission:
 
 ---
 
-## Why Bazaar is not a prediction market
-
-Bazaar's agents do **not** bet on an external outcome and wait for it to resolve. They negotiate *with each other* over assets, and price discovery happens **through the negotiation itself** — offers, counters, coalitions, and walk-aways. The real-world data (a closing price, a goal differential, a weather metric) only sets each lot's *hidden* worth so the negotiation has ground truth to converge toward; it is never the thing being predicted. There is no market on "will X happen." There is a sealed value, four agents reasoning about it under uncertainty, and a settlement. That also makes Bazaar a different animal from Somnia's flagship Prophecy Social — this is agent-vs-agent price discovery, not a prediction venue.
-
 ## Why this is not just another agent wrapper
 
 Most entries are one agent calling one LLM endpoint behind a UI — advisory output from an off-chain bot. Bazaar is the opposite on three counts:
@@ -204,21 +200,6 @@ pnpm enter                 # poke the scheduler — joins the next match
 ```
 
 The scaffold ships with the production contract addresses pre-populated. See `starter-kit/README.md`.
-
-## What to read in what order
-
-If you're a judge / first-time visitor:
-1. **`README.md`** (you are here)
-2. **`docs/RECORDED_RUNS.md`** — every match on-chain, every receipt, every transcript
-3. **`docs/TECHNICAL.md`** — "How Bazaar uses the Agentic L1" (every Somnia primitive Bazaar touches)
-4. **`bazaar.md`** — the architectural spec
-5. **`design.md`** — the visual / interaction spec
-
-If you're a developer cloning to build on:
-1. **`CLAUDE.md`** — the locked decisions and the four non-negotiable Somnia integration rules
-2. **`docs/AUDIT_CHECKLIST.md`** — the per-contract verification of those four rules
-3. **`contracts/src/lib/AgentPlatformBase.sol`** — the shared base every requester inherits
-4. **`docs/RECORDED_RUNS.md`** — concrete event timelines to compare your local runs against
 
 ## Acknowledgements
 
