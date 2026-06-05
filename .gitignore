@@ -21,3 +21,10 @@ frontend/.vite/
 
 # Phase 0 wallet (never commit secrets)
 /tmp/bazaar_wallet.txt
+
+# Local-only planning/spec docs (untracked from remote, kept locally)
+/refine.md
+/resources.md
+/design.md
+/bazaar.md
+/TODO.md
