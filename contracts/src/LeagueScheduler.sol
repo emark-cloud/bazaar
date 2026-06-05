@@ -30,10 +30,11 @@ contract LeagueScheduler is SomniaEventHandler, Ownable {
                                                        // scheduler can run real-stakes matches on testnet)
     uint8   public seatCount           = 4;            // agents per match
     uint8   public rounds              = 2;            // DEPRECATED: Arena now caps at Arena.MAX_ROUNDS; unused
-    uint256 public operatingPerMatch   = 10 ether;     // sent alongside the pot to fund Arena's platform calls.
-                                                       // Must cover Arena's worst case at MAX_ROUNDS (~9.84 STT for 4 agents).
-    uint256 public minBalanceThreshold = 35 ether;     // open-gate floor. Real gate is max(this, pot + operating
-                                                       // + 32 STT reactivity reserve); ~43 STT at the defaults above.
+    uint256 public operatingPerMatch   = 21 ether;     // sent alongside the pot to fund Arena's platform calls.
+                                                       // Must cover Arena's worst case at MAX_ROUNDS=20 (~19.44 STT for
+                                                       // 4 agents / 2 lots; 21 leaves margin for up to 8 lots ~20.16).
+    uint256 public minBalanceThreshold = 45 ether;     // open-gate floor. Real gate is max(this, pot + operating
+                                                       // + 32 STT reactivity reserve); ~54 STT at the defaults above.
     uint256 public matchLookbackBufferBlocks = 12;     // ignored — kept for backward-compat tuning
     /// @notice The MatchFinalized event signature topic Arena emits. Updated if the event sig changes.
     bytes32 public matchFinalizedTopic;

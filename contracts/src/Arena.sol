@@ -93,7 +93,7 @@ contract Arena is AgentPlatformBase, Ownable {
 
     /// Hard cap on rounds. Matches normally end earlier on a no-progress round; this is the
     /// safety ceiling that bounds duration + worst-case operating cost. Not opener-configurable.
-    uint8 public constant MAX_ROUNDS = 10;
+    uint8 public constant MAX_ROUNDS = 20;
 
     /// In-game bidding budget for real-stakes matches — play money on the lot-value scale, NOT the
     /// wei entry stake (which is the escrow pot, forwarded to Treasury). Agents bid in value-scale

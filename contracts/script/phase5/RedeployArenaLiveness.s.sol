@@ -73,7 +73,8 @@ contract RedeployArenaLiveness is Script {
         console2.log("nextMatchId set  ", resumeFrom);
         console2.log("AuditCouncil     ", council_, "(reused, re-pointed)");
         console2.log("--- follow-up (separate cast send, precompile) ---");
-        console2.log("1) fund NEW scheduler >=82 STT, then scheduler.start()");
+        console2.log("1) fund NEW scheduler >=120 STT (54 min gate at op=21; rest = match headroom),");
+        console2.log("   then scheduler.start()");
         console2.log("2) oldScheduler.stop() to release its subscription");
         console2.log("3) apply off-chain addresses: ./script/apply-new-addresses.sh <arena> <sched>");
     }
