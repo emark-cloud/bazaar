@@ -25,7 +25,7 @@ const SUBC = 3n;
 
 // Arena.MAX_ROUNDS — the hardcoded safety cap. Matches usually end earlier on a stall, but the
 // opener must fund the worst case up-front (unused deposits are rebated on the early end).
-export const MAX_ROUNDS = 10;
+export const MAX_ROUNDS = 20;
 
 /** Worst-case STT the Arena must hold to finish a match (every call pays full deposit). */
 export function worstCaseOperating(seats: number, lots: number): bigint {
