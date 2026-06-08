@@ -7,6 +7,7 @@ import type { Agent, MoveEntry } from "../chain/types";
 import { AgentPanel } from "../components/AgentPanel";
 import { NegotiationStream } from "../components/NegotiationStream";
 import { LotCard } from "../components/LotCard";
+import { ResultsBreakdown, type AgentResult } from "../components/ResultsBreakdown";
 import { SigilTile } from "../components/SigilTile";
 import { CountUp } from "../components/CountUp";
 import { sttScale } from "../lib/format";
@@ -163,6 +164,41 @@ export default function LiveMatch() {
     return { id: BigInt(bestId), score: best ?? 0n, agent: agentById.get(bestId) };
   }, [settled, scoreByAgent, agentById]);
 
+  // Per-agent settlement breakdown: the items each agent won and the margin on
+  // each, ranked by net profit. Mirrors scoreByAgent's math so the explainer and
+  // the banner can never disagree about who won or by how much.
+  const results: AgentResult[] = useMemo(() => {
+    if (!settled) return [];
+    const nameOf = (id: bigint) => agentById.get(id.toString())?.name ?? `Agent #${id}`;
+    const wonByAgent = new Map<string, AgentResult["lots"]>();
+    const ensure = (id: bigint) => {
+      const key = id.toString();
+      let list = wonByAgent.get(key);
+      if (!list) { list = []; wonByAgent.set(key, list); }
+      return list;
+    };
+    for (const lot of lots) {
+      if (lot.ownerAgentId === 0n) continue;
+      const eff = lot.valueDivisor === 0n ? lot.revealedValue : lot.revealedValue / lot.valueDivisor;
+      const profit = BigInt(eff) - BigInt(lot.paidPrice);
+      if (lot.coalitionPartner === 0n) {
+        ensure(lot.ownerAgentId).push({ category: lot.category, paid: lot.paidPrice, value: eff, profit });
+      } else {
+        const half = profit / 2n;
+        ensure(lot.ownerAgentId).push({ category: lot.category, paid: lot.paidPrice, value: eff, profit: profit - half, coalitionWith: nameOf(lot.coalitionPartner) });
+        ensure(lot.coalitionPartner).push({ category: lot.category, paid: lot.paidPrice, value: eff, profit: half, coalitionWith: nameOf(lot.ownerAgentId) });
+      }
+    }
+    return (snapshot?.agentIds ?? [])
+      .map((id) => ({
+        id,
+        name: nameOf(id),
+        score: scoreByAgent.get(id.toString()) ?? 0n,
+        lots: wonByAgent.get(id.toString()) ?? [],
+      }))
+      .sort((a, b) => (b.score > a.score ? 1 : b.score < a.score ? -1 : 0));
+  }, [settled, lots, scoreByAgent, agentById, snapshot?.agentIds]);
+
   if (!matchId) {
     return <div className="p-8 text-text-secondary">scanning for the latest match…</div>;
   }
@@ -241,6 +277,9 @@ export default function LiveMatch() {
           </div>
         </div>
       )}
+
+      {/* Why the winner won — ranked profit breakdown, item by item */}
+      {settled && <ResultsBreakdown results={results} winnerId={winner?.id ?? null} />}
 
       {/* Four-region grid */}
       <div className="grid grid-cols-[260px_minmax(0,1fr)_300px] gap-3 flex-1 min-h-0 min-w-0">
