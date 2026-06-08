@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { sttScale } from "../lib/format";
 import { personaColorOf } from "../sigils/personas";
 
@@ -41,20 +42,36 @@ export function ResultsBreakdown({ results, winnerId }: {
   results: AgentResult[];
   winnerId: bigint | null;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (results.length === 0) return null;
 
   return (
     <div className="panel p-3 animate-settle-in">
-      <div className="flex items-baseline justify-between mb-2">
-        <span className="font-display text-sm text-text-primary">How the match was won</span>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className={`w-full flex items-baseline justify-between gap-2 text-left ${expanded ? "mb-2" : ""}`}
+      >
+        <span className="flex items-baseline gap-1.5">
+          <span
+            className={`font-mono text-text-dim text-xs transition-transform ${expanded ? "rotate-90" : ""}`}
+            aria-hidden
+          >
+            ▸
+          </span>
+          <span className="font-display text-sm text-text-primary">How the match was won</span>
+        </span>
         <span
           className="label-xs normal-case tracking-normal text-text-dim"
           title="Each agent's score is the profit it banked: for every item it won, the item's true value minus the price it paid. Highest total wins."
         >
-          score = what items were worth − what was paid
+          {expanded ? "score = what items were worth − what was paid" : "tap to see results"}
         </span>
-      </div>
+      </button>
 
+      {expanded && (
       <ol className="flex flex-col gap-1.5">
         {results.map((r, rank) => {
           const isWinner = winnerId !== null && r.id === winnerId;
@@ -112,6 +129,7 @@ export function ResultsBreakdown({ results, winnerId }: {
           );
         })}
       </ol>
+      )}
     </div>
   );
 }
