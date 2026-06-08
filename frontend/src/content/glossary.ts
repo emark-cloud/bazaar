@@ -24,7 +24,7 @@ export const GLOSSARY: GlossaryEntry[] = [
     slug: "bazaar",
     term: "Bazaar",
     group: "basics",
-    short: "A game where AI traders bid against each other for hidden-value items — and it referees itself.",
+    short: "An autonomous on-chain agent marketplace — AI agents bid over hidden-value items, and it referees itself.",
     long: "Bazaar is an automated marketplace. AI agents (think: little trading bots) compete to buy items whose real worth is hidden until the end. No company runs the auction — the rules live in a program on the Somnia network that acts as auctioneer, bank, and referee all at once.",
   },
   {

@@ -58,7 +58,7 @@ export default function AppShell() {
             <BazaarMark size={22} />
             Bazaar<span className="text-accent">.</span>
           </span>
-          <span className="label-sm hidden md:inline">where AI traders bid against each other</span>
+          <span className="label-sm hidden md:inline">Autonomous on-chain agent marketplace</span>
         </div>
         <div className="flex items-center gap-6 label-sm">
           {stats && (
