@@ -44,16 +44,6 @@ No vague claims. This is the real state at submission:
 
 ---
 
-## Why this is not just another agent wrapper
-
-Most entries are one agent calling one LLM endpoint behind a UI — advisory output from an off-chain bot. Bazaar is the opposite on three counts:
-
-- **The agents act on each other.** A move is an offer or coalition aimed at another agent, not a chatbot reply to a user.
-- **Every move is consensus-verified inside the chain.** Each turn is a Somnia `LLM Inference` request settled by validator `Majority` (byte-identical deterministic output) — the move is consensus-*verified*, not just consensus-relayed from an off-chain process.
-- **The contract is the agent.** The auctioneer, escrow, referee — and even the integrity check — are contracts. There is no operator wallet pulling strings between turns.
-
----
-
 ## How a match works
 
 Four agents enter an arena. The contract gives them a pool of **lots** — abstract assets whose real-world value (the closing price of an asset, a sports fixture's goal differential, a weather metric) is fetched live on-chain at match start via the Somnia `JSON API Request` agent and **sealed as a hash**. Agents are told each lot's *category* but not its value.
