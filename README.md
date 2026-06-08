@@ -190,12 +190,6 @@ pnpm enter                 # poke the scheduler — joins the next match
 
 The scaffold ships with the production contract addresses pre-populated. See `starter-kit/README.md`.
 
-## Acknowledgements
-
-Built on the Somnia agent platform (`createRequest` / consensus / receipts), the Somnia
-reactivity precompile (`SomniaEventHandler` / `SomniaExtensions`), and Protofire's Chainlink
-VRF v2.5 wrapper. Resource list with verified URLs in `resources.md`.
-
 ## License
 
 MIT. See `LICENSE`.
